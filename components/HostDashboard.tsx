@@ -4,7 +4,17 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import BrandMark from './BrandMark';
 import DeleteInvitationButton from './DeleteInvitationButton';
-import type { EmailBlast, Guest, Invitation, RsvpStatus, TextAudience, TextBlast } from '@/lib/types';
+import { REMINDER_AUDIENCES, reminderRecipients } from '@/lib/reminder-audience';
+import type {
+  EmailBlast,
+  Guest,
+  Invitation,
+  Reminder,
+  ReminderAudience,
+  RsvpStatus,
+  TextAudience,
+  TextBlast,
+} from '@/lib/types';
 
 /** Same shape check the send route uses, so the counts here match what goes out. */
 function mailOk(value?: string) {
@@ -17,6 +27,27 @@ const STATUS_LABEL: Record<RsvpStatus, string> = {
   no: 'Declined',
   maybe: 'Maybe',
 };
+
+const AUDIENCE_LABEL: Record<ReminderAudience, string> = {
+  pending: 'No reply yet',
+  maybe: 'Maybe',
+  all: 'Everyone who has not declined',
+};
+
+const REMINDER_STATUS: Record<Reminder['status'], string> = {
+  scheduled: 'Scheduled',
+  sent: 'Sent',
+  partial: 'Partly sent',
+  failed: 'Failed',
+  'not-configured': 'Not sent — provider missing',
+};
+
+function tomorrowMorning() {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  date.setHours(9, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T09:00`;
+}
 
 export default function HostDashboard({
   inv,
@@ -59,6 +90,14 @@ export default function HostDashboard({
   const [coHostEmail, setCoHostEmail] = useState('');
   const [coHostBusy, setCoHostBusy] = useState(false);
   const [coHostError, setCoHostError] = useState<string | null>(null);
+  const [household, setHousehold] = useState('');
+  const [reminders, setReminders] = useState<Reminder[]>(inv.reminders ?? []);
+  const [reminderAt, setReminderAt] = useState(tomorrowMorning);
+  const [reminderAudience, setReminderAudience] = useState<ReminderAudience>('pending');
+  const [reminderChannel, setReminderChannel] = useState<'email' | 'text'>('email');
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [reminderNote, setReminderNote] = useState<string | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -70,6 +109,31 @@ export default function HostDashboard({
   const headcount = yes.reduce((sum, g) => sum + Math.max(1, g.adults + g.children, 1 + g.plusOnes), 0);
   const answered = guests.filter((g) => g.status !== 'invited').length;
   const sharePath = `/i/${inv.id}`;
+  const checkedIn = guests.filter((g) => g.checkedInAt);
+  const checkedInHeads = checkedIn.reduce(
+    (sum, g) => sum + Math.max(1, g.adults + g.children, 1 + g.plusOnes),
+    0,
+  );
+  const outstanding = pending.length + guests.filter((g) => g.status === 'maybe').length;
+
+  const households = useMemo(() => {
+    const map = new Map<
+      string,
+      { invited: number; attending: number; checkedIn: number; names: string[] }
+    >();
+    for (const guest of guests) {
+      const key = guest.household?.trim() || guest.tag?.trim() || 'Unassigned';
+      const entry = map.get(key) ?? { invited: 0, attending: 0, checkedIn: 0, names: [] };
+      entry.invited += 1;
+      if (guest.status === 'yes') entry.attending += 1;
+      if (guest.checkedInAt) entry.checkedIn += 1;
+      entry.names.push(guest.name);
+      map.set(key, entry);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [guests]);
+
+  const reminderReach = reminderRecipients(guests, reminderAudience, reminderChannel).length;
 
   // Texting only ever reaches guests with a number and a tick.
   const consented = guests.filter((g) => g.phone && g.smsConsent);
@@ -136,12 +200,73 @@ export default function HostDashboard({
     const data = await call(`/api/invitations/${inv.id}/guests`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, email, tag }),
+      body: JSON.stringify({ name, email, tag, household }),
     });
     if (data?.guests) {
       setGuests(data.guests);
       setName('');
       setEmail('');
+      setHousehold('');
+    }
+  }
+
+  async function patchGuest(guestId: string, patch: Partial<Guest>) {
+    const data = await call(`/api/invitations/${inv.id}/guests`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ guestId, patch }),
+    });
+    if (data?.guests) setGuests(data.guests);
+  }
+
+  async function scheduleReminder(sendNow = false) {
+    setReminderBusy(true);
+    setReminderError(null);
+    setReminderNote(null);
+    try {
+      const res = await fetch(`/api/invitations/${inv.id}/reminders`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sendAt: reminderAt,
+          audience: reminderAudience,
+          channel: reminderChannel,
+          sendNow,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReminderError(data?.error ?? 'That reminder did not save.');
+      } else {
+        setReminders(data.reminders ?? []);
+        setReminderNote(
+          sendNow
+            ? 'Reminder sent. The result is in the list below.'
+            : `Scheduled for ${new Date(reminderAt).toLocaleString()}.`,
+        );
+      }
+    } catch {
+      setReminderError('Network problem — the reminder was not saved.');
+    } finally {
+      setReminderBusy(false);
+    }
+  }
+
+  async function cancelReminder(reminderId: string) {
+    setReminderBusy(true);
+    setReminderError(null);
+    try {
+      const res = await fetch(
+        `/api/invitations/${inv.id}/reminders?reminderId=${encodeURIComponent(reminderId)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!res.ok) setReminderError(data?.error ?? 'That reminder did not cancel.');
+      else setReminders(data.reminders ?? []);
+    } catch {
+      setReminderError('Network problem — the reminder was not cancelled.');
+    } finally {
+      setReminderBusy(false);
     }
   }
 
@@ -181,9 +306,25 @@ export default function HostDashboard({
   }
 
   function exportCsv() {
-    const header = ['Name', 'Email', 'Mobile', 'Text updates', 'Group', 'Reply', 'Additional guests', 'Adults', 'Children', 'Message'];
+    const header = [
+      'Name',
+      'Household',
+      'Email',
+      'Mobile',
+      'Text updates',
+      'Group',
+      'Reply',
+      'Additional guests',
+      'Adults',
+      'Children',
+      'Dietary',
+      'Accessibility',
+      'Checked in',
+      'Message',
+    ];
     const rows = guests.map((g) => [
       g.name,
+      g.household ?? '',
       g.email,
       g.phone ?? '',
       g.phone ? (g.smsConsent ? 'Yes' : 'No') : '',
@@ -192,6 +333,9 @@ export default function HostDashboard({
       String(g.plusOnes),
       String(g.adults),
       String(g.children),
+      g.dietary ?? '',
+      g.accessibility ?? '',
+      g.checkedInAt ? new Date(g.checkedInAt).toLocaleString() : '',
       g.message.replace(/"/g, '""'),
     ]);
     const csv = [header, ...rows]
@@ -356,6 +500,9 @@ export default function HostDashboard({
           {isOwner ? (
             <DeleteInvitationButton id={inv.id} title={inv.title} redirectTo="/" label="Delete" />
           ) : null}
+          <Link className="btn btn-ghost" href={`/host/${inv.id}/checkin`}>
+            Check-in
+          </Link>
           <Link className="btn btn-ghost" href={`/host/${inv.id}/seating`}>
             Seating plan
           </Link>
@@ -414,6 +561,13 @@ export default function HostDashboard({
             </span>
             <span className="stat-label">Replied</span>
           </div>
+          <div className="stat">
+            <span className="stat-value">
+              {checkedIn.length}
+              <span className="stat-sub"> / {yes.length}</span>
+            </span>
+            <span className="stat-label">Checked in</span>
+          </div>
         </section>
 
         {inv.settings.capacity ? (
@@ -424,6 +578,61 @@ export default function HostDashboard({
         ) : null}
 
         {error ? <p className="form-error">{error}</p> : null}
+
+        <section className="host-card">
+          <div className="panel-head">
+            <h2 className="panel-title">On the door</h2>
+            <div className="row-actions">
+              <Link className="btn btn-ghost btn-small" href={`/host/${inv.id}/checkin`}>
+                Open check-in
+              </Link>
+              <Link className="btn btn-ghost btn-small" href={`/host/${inv.id}/checkin/report`}>
+                Attendance report
+              </Link>
+            </div>
+          </div>
+          <p className="panel-note">
+            Each guest has a pass with a QR code on their invitation page. Scan it from a phone at the
+            door, or check people in by name — the list works offline-ish (one tap per guest).
+          </p>
+          <div className="checkin-mini">
+            <span>
+              <strong>{checkedIn.length}</strong> guests scanned in
+            </span>
+            <span>
+              <strong>{checkedInHeads}</strong> of {headcount} heads inside
+            </span>
+            <span>
+              <strong>{outstanding}</strong> replies outstanding
+            </span>
+          </div>
+        </section>
+
+        <section className="host-card">
+          <div className="panel-head">
+            <h2 className="panel-title">Households &amp; groups</h2>
+            <span className="muted small">{households.length} groups</span>
+          </div>
+          <p className="panel-note">
+            A household is the party one envelope is addressed to. Grouping guests this way keeps
+            families together on the list, in the seating plan and on the attendance report.
+          </p>
+          {households.length ? (
+            <div className="household-grid">
+              {households.map(([name, entry]) => (
+                <div className="household-chip" key={name}>
+                  <strong>{name}</strong>
+                  <span className="muted small">
+                    {entry.invited} invited · {entry.attending} attending · {entry.checkedIn} here
+                  </span>
+                  <span className="muted small household-names">{entry.names.join(' · ')}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted small">No guests yet.</p>
+          )}
+        </section>
 
         <section className="host-card">
           <div className="panel-head">
@@ -510,6 +719,12 @@ export default function HostDashboard({
             />
             <input
               className="input"
+              placeholder="Household (optional)"
+              value={household}
+              onChange={(e) => setHousehold(e.target.value)}
+            />
+            <input
+              className="input"
               placeholder="Group"
               value={tag}
               onChange={(e) => setTag(e.target.value)}
@@ -530,6 +745,7 @@ export default function HostDashboard({
                 <thead>
                   <tr>
                     <th>Guest</th>
+                    <th>Household</th>
                     <th>Group</th>
                     <th>Reply</th>
                     <th>Party</th>
@@ -568,6 +784,23 @@ export default function HostDashboard({
                             </div>
                           ) : null}
                         </td>
+                        <td>
+                          <input
+                            className="input guest-name"
+                            defaultValue={guest.household ?? ''}
+                            placeholder="—"
+                            aria-label={`Household for ${guest.name}`}
+                            onBlur={(e) => {
+                              const next = e.target.value.trim();
+                              if (next !== (guest.household ?? '')) {
+                                patchGuest(guest.id, { household: next });
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                            }}
+                          />
+                        </td>
                         <td>{guest.tag || '—'}</td>
                         <td>
                           <select
@@ -597,8 +830,28 @@ export default function HostDashboard({
                               </div>
                             );
                           })}
+                          {guest.dietary ? (
+                            <div className="answer-line">
+                              <span className="muted small">Dietary</span>
+                              <div>{guest.dietary}</div>
+                            </div>
+                          ) : null}
+                          {guest.accessibility ? (
+                            <div className="answer-line">
+                              <span className="muted small">Access</span>
+                              <div>{guest.accessibility}</div>
+                            </div>
+                          ) : null}
+                          {guest.checkedInAt ? (
+                            <div className="answer-line">
+                              <span className="muted small">Checked in</span>
+                              <div>{new Date(guest.checkedInAt).toLocaleTimeString()}</div>
+                            </div>
+                          ) : null}
                           {guest.message ? <div className="answer-line">“{guest.message}”</div> : null}
-                          {!entries.length && !guest.message ? <span className="muted">—</span> : null}
+                          {!entries.length && !guest.message && !guest.dietary && !guest.accessibility ? (
+                            <span className="muted">—</span>
+                          ) : null}
                         </td>
                         <td>
                           <button
@@ -628,6 +881,113 @@ export default function HostDashboard({
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+
+        <section className="host-card">
+          <div className="panel-head">
+            <h2 className="panel-title">RSVP reminders</h2>
+            <span className="muted small">{outstanding} still to reply</span>
+          </div>
+          <p className="panel-note">
+            Nudge only the people who owe a reply. There is no background server here, so a reminder
+            that comes due is sent the next time a host opens this dashboard — or press “Send now”.
+          </p>
+
+          <div className="reminder-form">
+            <label className="field">
+              <span className="field-label">Send at</span>
+              <input
+                className="input"
+                type="datetime-local"
+                value={reminderAt}
+                onChange={(e) => setReminderAt(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Who</span>
+              <select
+                className="input"
+                value={reminderAudience}
+                onChange={(e) => setReminderAudience(e.target.value as ReminderAudience)}
+              >
+                {REMINDER_AUDIENCES.map((audience) => (
+                  <option key={audience} value={audience}>
+                    {AUDIENCE_LABEL[audience]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field-label">Channel</span>
+              <select
+                className="input"
+                value={reminderChannel}
+                onChange={(e) => setReminderChannel(e.target.value === 'text' ? 'text' : 'email')}
+              >
+                <option value="email">Email</option>
+                <option value="text">Text</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="row-actions">
+            <button
+              className="btn btn-primary"
+              disabled={reminderBusy}
+              onClick={() => scheduleReminder(false)}
+            >
+              {reminderBusy ? 'Saving…' : 'Schedule reminder'}
+            </button>
+            <button
+              className="btn btn-ghost"
+              disabled={reminderBusy || !reminderReach}
+              onClick={() => scheduleReminder(true)}
+            >
+              Send now
+            </button>
+            <span className="muted small">{reminderReach} reachable on this channel</span>
+          </div>
+
+          {reminderError ? <p className="form-error">{reminderError}</p> : null}
+          {reminderNote ? <p className="text-result">{reminderNote}</p> : null}
+
+          {reminders.length ? (
+            <div className="reminder-list">
+              {reminders
+                .slice()
+                .reverse()
+                .map((reminder) => (
+                  <div className="reminder-row" key={reminder.id}>
+                    <div>
+                      <strong>{
+                        reminder.status === 'scheduled'
+                          ? new Date(reminder.sendAt).toLocaleString()
+                          : `Sent ${reminder.sentAt ? new Date(reminder.sentAt).toLocaleString() : ''}`
+                      }</strong>
+                      <div className="muted small">
+                        {reminder.channel === 'email' ? 'Email' : 'Text'} ·{' '}
+                        {AUDIENCE_LABEL[reminder.audience]} · {REMINDER_STATUS[reminder.status]}
+                        {reminder.recipients
+                          ? ` · ${reminder.delivered ?? 0} of ${reminder.recipients} sent`
+                          : ''}
+                      </div>
+                      {reminder.detail ? <div className="muted small">{reminder.detail}</div> : null}
+                    </div>
+                    {reminder.status === 'scheduled' ? (
+                      <button
+                        className="btn btn-ghost btn-small"
+                        disabled={reminderBusy}
+                        onClick={() => cancelReminder(reminder.id)}
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="muted small">No reminders yet.</p>
           )}
         </section>
 

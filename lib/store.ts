@@ -36,19 +36,31 @@ function queued<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+const headsOf = (guest: { status: string; adults: number; children: number; plusOnes: number }) =>
+  guest.status === 'yes' ? Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes) : 0;
+
+function summarise(inv: Invitation): InvitationSummary {
+  return {
+    id: inv.id,
+    title: inv.title || inv.event.title || 'Untitled invitation',
+    designSlug: inv.designSlug,
+    updatedAt: inv.updatedAt,
+    startsAt: inv.event.startsAt,
+    location: inv.event.location,
+    guestCount: inv.guests.length,
+    yesCount: inv.guests.filter((g) => g.status === 'yes').length,
+    maybeCount: inv.guests.filter((g) => g.status === 'maybe').length,
+    checkedIn: inv.guests.filter((g) => g.checkedInAt).length,
+    headcount: inv.guests.reduce((sum, g) => sum + headsOf(g), 0),
+    preview: inv.card.layers.find((l) => l.name === 'Hosts')?.text ?? inv.event.host,
+  };
+}
+
 export async function listInvitations(ownerId?: string): Promise<InvitationSummary[]> {
   const db = await load();
   return Object.values(db.invitations)
     .filter((inv) => !ownerId || inv.ownerId === ownerId)
-    .map((inv) => ({
-      id: inv.id,
-      title: inv.title || inv.event.title || 'Untitled invitation',
-      designSlug: inv.designSlug,
-      updatedAt: inv.updatedAt,
-      guestCount: inv.guests.length,
-      yesCount: inv.guests.filter((g) => g.status === 'yes').length,
-      preview: inv.card.layers.find((l) => l.name === 'Hosts')?.text ?? inv.event.host,
-    }))
+    .map(summarise)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
@@ -116,14 +128,6 @@ export async function listSharedInvitations(email: string): Promise<InvitationSu
         inv.ownerId &&
         (inv.collaborators ?? []).some((entry) => entry.toLowerCase() === wanted),
     )
-    .map((inv) => ({
-      id: inv.id,
-      title: inv.title || inv.event.title || 'Untitled invitation',
-      designSlug: inv.designSlug,
-      updatedAt: inv.updatedAt,
-      guestCount: inv.guests.length,
-      yesCount: inv.guests.filter((g) => g.status === 'yes').length,
-      preview: inv.card.layers.find((l) => l.name === 'Hosts')?.text ?? inv.event.host,
-    }))
+    .map(summarise)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }

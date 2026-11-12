@@ -221,6 +221,12 @@ export type Guest = {
   id: string;
   name: string;
   email: string;
+  /** party the guest belongs to, e.g. "The Alvarez family" */
+  household?: string;
+  /** anything the kitchen should know */
+  dietary?: string;
+  /** step-free access, seating, quiet room, … */
+  accessibility?: string;
   /** mobile number given for event updates */
   phone?: string;
   /** explicit permission to receive text messages */
@@ -235,6 +241,32 @@ export type Guest = {
   respondedAt: string | null;
   /** set on a plus-one row: the guest whose invitation brought them */
   companionOf?: string | null;
+  /** when the door team scanned them in */
+  checkedInAt?: string | null;
+  /** who on the door team scanned them in */
+  checkedInBy?: string;
+};
+
+/** Who a reminder asks for a reply. */
+export type ReminderAudience = 'pending' | 'maybe' | 'all';
+
+/** A nudge to guests who have not replied yet. */
+export type Reminder = {
+  id: string;
+  sendAt: string;
+  audience: ReminderAudience;
+  channel: 'email' | 'text';
+  createdAt: string;
+  status: 'scheduled' | 'sent' | 'partial' | 'failed' | 'not-configured';
+  /** claim token: only the request that set this may send the reminder */
+  sendingId?: string;
+  /** when the claim was taken, so a crashed send can be retried later */
+  claimedAt?: string;
+  sentAt?: string;
+  recipients?: number;
+  delivered?: number;
+  failed?: number;
+  detail?: string;
 };
 
 export type Invitation = {
@@ -263,6 +295,8 @@ export type Invitation = {
   /** text updates already sent, newest last */
   texts?: TextBlast[];
   emails?: EmailBlast[];
+  /** scheduled RSVP nudges */
+  reminders?: Reminder[];
 };
 
 export type InvitationSummary = {
@@ -270,8 +304,14 @@ export type InvitationSummary = {
   title: string;
   designSlug: string;
   updatedAt: string;
+  startsAt: string;
+  location: string;
   guestCount: number;
   yesCount: number;
+  maybeCount: number;
+  checkedIn: number;
+  /** heads expected, counting parties and plus-ones */
+  headcount: number;
   preview: string;
 };
 

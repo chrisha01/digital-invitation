@@ -16,6 +16,9 @@ class RsvpError extends Error {
 type Body = {
   name?: string;
   email?: string;
+  household?: string;
+  dietary?: string;
+  accessibility?: string;
   phone?: string;
   smsConsent?: boolean;
   attending?: string;
@@ -105,6 +108,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
       guest.name = name;
       if (email) guest.email = email;
+      guest.household = (body?.household ?? '').trim().slice(0, 80) || guest.household || '';
+      guest.dietary = (body?.dietary ?? '').trim().slice(0, 300);
+      guest.accessibility = (body?.accessibility ?? '').trim().slice(0, 300);
       guest.phone = phone;
       guest.smsConsent = phone ? Boolean(body?.smsConsent) : false;
 

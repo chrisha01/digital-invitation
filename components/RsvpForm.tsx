@@ -12,6 +12,9 @@ type Props = {
 export default function RsvpForm({ inv, guest, onSaved }: Props) {
   const [name, setName] = useState(guest?.name ?? '');
   const [email, setEmail] = useState(guest?.email ?? '');
+  const [household, setHousehold] = useState(guest?.household ?? '');
+  const [dietary, setDietary] = useState(guest?.dietary ?? '');
+  const [accessibility, setAccessibility] = useState(guest?.accessibility ?? '');
   const [phone, setPhone] = useState(guest?.phone ?? '');
   const [smsConsent, setSmsConsent] = useState(guest?.smsConsent ?? false);
   const [attending, setAttending] = useState<'yes' | 'no' | 'maybe'>(
@@ -60,6 +63,9 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
         body: JSON.stringify({
           name,
           email,
+          household,
+          dietary,
+          accessibility,
           phone: phone.trim(),
           smsConsent: phone.trim() ? smsConsent : false,
           attending,
@@ -101,6 +107,44 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
+          />
+        </label>
+      </div>
+
+      <label className="field">
+        <span className="field-label">
+          Household or party <span className="muted">(optional)</span>
+        </span>
+        <input
+          className="input"
+          value={household}
+          onChange={(e) => setHousehold(e.target.value)}
+          placeholder="e.g. The Alvarez family"
+        />
+        <span className="field-hint">Helps the hosts group your party and plan the seating.</span>
+      </label>
+
+      <div className="grid-2">
+        <label className="field">
+          <span className="field-label">
+            Dietary needs <span className="muted">(optional)</span>
+          </span>
+          <input
+            className="input"
+            value={dietary}
+            onChange={(e) => setDietary(e.target.value)}
+            placeholder="Allergies, vegetarian, no pork…"
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">
+            Access needs <span className="muted">(optional)</span>
+          </span>
+          <input
+            className="input"
+            value={accessibility}
+            onChange={(e) => setAccessibility(e.target.value)}
+            placeholder="Step-free access, seating, quiet room…"
           />
         </label>
       </div>

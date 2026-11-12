@@ -52,10 +52,12 @@ export default function GuestView({
   inv,
   guest: initialGuest,
   guestName,
+  passSvg,
 }: {
   inv: Invitation;
   guest: Guest | null;
   guestName: string | null;
+  passSvg?: string | null;
 }) {
   const [stage, setStage] = useState<Stage>(inv.envelope.enabled ? 'closed' : 'card');
   const [guest, setGuest] = useState<Guest | null>(initialGuest);
@@ -256,6 +258,20 @@ export default function GuestView({
                 </a>
               ) : null}
             </div>
+
+            {guest && passSvg ? (
+              <details className="guest-pass">
+                <summary>Your entry pass</summary>
+                <div
+                  className="guest-pass-code"
+                  // Generated on the server from our own pass code, never guest input.
+                  dangerouslySetInnerHTML={{ __html: passSvg }}
+                />
+                <p className="muted small">
+                  Show this at the door, or read out the code <code>{guest.id}</code>.
+                </p>
+              </details>
+            ) : null}
 
             {inv.blocks.map((block) => (
               <section className="guest-block" key={block.id}>

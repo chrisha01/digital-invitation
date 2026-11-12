@@ -27,7 +27,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   if (!(await owns(id))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const body = (await request.json().catch(() => null)) as
-    | { name?: string; email?: string; tag?: string }
+    | { name?: string; email?: string; tag?: string; household?: string }
     | null;
   const name = (body?.name ?? '').trim().slice(0, 120);
   if (!name) return NextResponse.json({ error: 'A guest needs a name.' }, { status: 400 });
@@ -37,6 +37,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       id: newId('guest'),
       name,
       email: (body?.email ?? '').trim().slice(0, 200),
+      household: (body?.household ?? '').trim().slice(0, 80),
       tag: (body?.tag ?? '').trim().slice(0, 60),
       status: 'invited',
       plusOnes: 0,
@@ -74,6 +75,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (typeof patch.name === 'string') guest.name = patch.name.slice(0, 120);
     if (typeof patch.email === 'string') guest.email = patch.email.slice(0, 200);
     if (typeof patch.tag === 'string') guest.tag = patch.tag.slice(0, 60);
+    if (typeof patch.household === 'string') guest.household = patch.household.slice(0, 80);
+    if (typeof patch.dietary === 'string') guest.dietary = patch.dietary.slice(0, 300);
+    if (typeof patch.accessibility === 'string')
+      guest.accessibility = patch.accessibility.slice(0, 300);
   });
 }
 
