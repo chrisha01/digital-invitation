@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Gatherly
 
 An online-invitation studio: design a card, dress the envelope, publish a guest page, collect RSVPs.
@@ -49,3 +50,6 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 
 Read §7–§9 of `REQUIREMENTS.md`. At minimum: add authentication, move the store to a real database,
 move uploads to object storage, and rate-limit the public RSVP endpoint.
+=======
+# digital-invitation
+>>>>>>> origin/main
