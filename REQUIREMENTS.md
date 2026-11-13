@@ -216,8 +216,11 @@ infrastructure or commercial agreements rather than design work:
 
 ## 9. Known limitations
 
-1. **Storage is a single JSON file** (`.data/invitations.json`). Fine for one host on one machine;
-   not multi-tenant. Writes are serialised in-process to avoid clobbering.
+1. **Invitations are in Postgres; accounts are not yet.** Invitations and replies (including guests,
+   replies, seating, reminders) are stored as whole documents in the `invitations` table, with
+   `owner_id`, `updated_at` and `collaborators` lifted into indexed columns. Changes take a row lock
+   inside a transaction, so concurrent edits cannot lose each other. Accounts, password hashes and
+   the session secret are still files under `.data/`.
 2. **Accounts are file-backed and single-machine.** Sign-up, sign-in, password reset and signed
    session cookies live in `.data/users.json`, so every account exists only on this host. Move to a
    shared user table (or `@freebuff/auth`) before running more than one instance.

@@ -5,17 +5,21 @@
   "scripts": {
     "dev": "next dev -p 3210",
     "build": "next build",
-    "start": "next start -p 3210"
+    "start": "next start -p 3210",
+    "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
+    "db:import": "node --env-file-if-exists=.env scripts/db-import.mjs"
   },
   "dependencies": {
     "jsqr": "^1.4.0",
     "next": "^15.0.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

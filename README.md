@@ -33,18 +33,28 @@ npm run build && npm start
 | `lib/designs.ts` | The design catalogue and its palettes |
 | `lib/motifs.tsx` | Original decorative SVG artwork |
 | `lib/defaults.ts` | Sample wording and invitation factory |
-| `lib/store.ts` | File-backed store, serialised writes |
+| `lib/store.ts` | Postgres store — one document row per invitation |
+| `db/migrations/` | SQL migrations, applied in order |
 | `lib/auth.ts` | Accounts, password hashing, signed session cookies |
 | `components/` | Editor, card renderer, envelope, guest view, RSVP form, host dashboard |
 
 ## Data
 
-Invitations and replies live in `.data/invitations.json` (git-ignored). Delete that file to start
-fresh — the app recreates it on the next write. Accounts and the session secret live beside it in
-`.data/users.json` and `.data/session-secret`.
+Invitations and replies live in Postgres, one document per invitation in the `invitations` table.
+Put your connection string in `.env`:
 
-Point `GATHERLY_DATA_DIR` at another directory to run against a throwaway store instead — handy for
-trying something (a burst of test replies, say) without touching the real guest list.
+```bash
+DATABASE_URL=postgresql://…
+npm run db:migrate   # create or upgrade the tables
+npm run db:import    # one-off: copy .data/invitations.json into the database
+```
+
+`db:import` is idempotent — it upserts by invitation id and checks its own row counts — so it is
+safe to run again. Writes go through a transaction that locks the row, so two requests editing the
+same invitation cannot lose each other's changes.
+
+Accounts and the session secret still live in `.data/users.json` and `.data/session-secret`; moving
+them into Postgres is the next step. `GATHERLY_DATA_DIR` still points those files somewhere else.
 
 ## How the card scales
 
