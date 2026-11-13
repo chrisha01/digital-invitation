@@ -88,6 +88,21 @@ export async function recordSweepRun(
 /** Advisory lock id shared by every caller. */
 const SWEEP_LOCK = 728_190_331;
 
+/** How long a run stays queryable; older rows are pruned on each sweep. */
+function retentionDays(): number {
+  const configured = Number(process.env.JOB_RUNS_RETENTION_DAYS ?? '30');
+  return Number.isFinite(configured) && configured >= 1 ? configured : 30;
+}
+
+/** Keeps job_runs from growing without bound. Returns how many rows went. */
+export async function pruneJobRuns(days = retentionDays()): Promise<number> {
+  const { rowCount } = await getPool().query(
+    'delete from job_runs where started_at < now() - make_interval(days => $1) and id < (select max(id) from job_runs)',
+    [days],
+  );
+  return rowCount ?? 0;
+}
+
 /**
  * Runs one sweep, unless another run currently holds the lock, and records it.
  *
@@ -117,6 +132,11 @@ export async function runSweepJob(
     await client.query('commit');
 
     await recordSweepRun(result, startedAt, null);
+    const pruned = await pruneJobRuns().catch((error) => {
+      console.error('[sweep] could not prune old runs:', error instanceof Error ? error.message : error);
+      return 0;
+    });
+    if (pruned) console.log(`[sweep] pruned ${pruned} run(s) older than ${retentionDays()} day(s)`);
     console.log(
       `[sweep] listed ${result.listed}, referenced ${result.referenced}, deleted ${result.deleted.length}`,
       result.deleted.length ? result.deleted : '',

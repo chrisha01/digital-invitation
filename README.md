@@ -108,6 +108,33 @@ Three ways to run it, all using the same code:
 Nothing is removed unless `--delete` (or `"delete": true`) is passed, and objects modified within
 the last 24 hours are always kept, so a sweep cannot race an upload being saved.
 
+`job_runs` keeps `JOB_RUNS_RETENTION_DAYS` (default 30) of history; each sweep prunes anything
+older, and the row it just wrote is never pruned.
+
+## Deployment
+
+The app and the scheduler are separate processes, and both want a supervisor:
+
+```bash
+# systemd
+sudo cp deploy/gatherly-scheduler.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gatherly-scheduler
+journalctl -u gatherly-scheduler -f
+
+# or PM2
+pm2 start deploy/ecosystem.config.cjs
+pm2 save && pm2 startup
+pm2 logs gatherly-scheduler
+```
+
+The unit assumes the app lives in `/srv/gatherly` and runs as the `gatherly` user; adjust those to
+the host. `.env` must stay mode `0600` — it holds `DATABASE_URL` and `CRON_SECRET` — and the
+scheduler reads the same file the app does.
+
+Before the first start: `npm ci && npm run build && npm run db:migrate`, with `NODE_ENV=production`
+so session cookies are marked `secure` (which means the app must be reached over HTTPS).
+
 ## How the card scales
 
 Text sizes are stored in percent of card width and rendered with CSS container query units. The same

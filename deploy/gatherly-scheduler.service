@@ -1,0 +1,48 @@
+[Unit]
+Description=Gatherly orphan-image sweep scheduler
+Documentation=file:///srv/gatherly/README.md
+# The scheduler only needs the app to be reachable; it retries on its own if it
+# starts first, but waiting for the network avoids a noisy first attempt.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gatherly
+Group=gatherly
+WorkingDirectory=/srv/gatherly
+
+# APP_URL, CRON_SECRET and SWEEP_INTERVAL_MINUTES come from here. Keep the file
+# mode 0600 and owned by the service user; it also holds DATABASE_URL.
+EnvironmentFile=/srv/gatherly/.env
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+ExecStart=/usr/bin/npm run scheduler
+
+Restart=always
+RestartSec=10
+# A scheduler that keeps crashing should stop being restarted forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gatherly-scheduler
+
+# The job only needs to talk to the app and Postgres; it writes nothing locally.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target
