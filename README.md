@@ -130,7 +130,8 @@ pm2 logs gatherly-scheduler
 
 The unit assumes the app lives in `/srv/gatherly` and runs as the `gatherly` user; adjust those to
 the host. `.env` must stay mode `0600` — it holds `DATABASE_URL` and `CRON_SECRET` — and the
-scheduler reads the same file the app does.
+scheduler reads the same file the app does. It execs `node` directly rather than `npm run`, so the
+scheduler is the unit's main process and `systemctl stop` reaches it with SIGTERM.
 
 Before the first start: `npm ci && npm run build && npm run db:migrate`, with `NODE_ENV=production`
 so session cookies are marked `secure` (which means the app must be reached over HTTPS).

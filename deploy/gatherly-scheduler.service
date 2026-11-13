@@ -1,6 +1,13 @@
 [Unit]
 Description=Gatherly orphan-image sweep scheduler
 Documentation=file:///srv/gatherly/README.md
+
+# These two live in [Unit], not [Service]: systemd 229 moved them there, and the
+# [Service] copies are ignored, which would make a crashing scheduler restart
+# forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 # The scheduler only needs the app to be reachable; it retries on its own if it
 # starts first, but waiting for the network avoids a noisy first attempt.
 After=network-online.target
@@ -18,14 +25,16 @@ EnvironmentFile=/srv/gatherly/.env
 Environment=NODE_ENV=production
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 
-ExecStart=/usr/bin/npm run scheduler
+# node directly, never through npm: with npm in between, systemd signals the
+# wrapper and node can outlive the unit or be killed abruptly on stop. /usr/bin/
+# env execs node in place, so the main PID is the scheduler. Change the path if
+# node lives elsewhere (nvm installs under /usr/local/bin or a home directory).
+ExecStart=/usr/bin/env node scripts/scheduler.mjs
 
 Restart=always
 RestartSec=10
-# A scheduler that keeps crashing should stop being restarted forever.
-StartLimitIntervalSec=300
-StartLimitBurst=5
 TimeoutStopSec=15
+KillSignal=SIGTERM
 
 StandardOutput=journal
 StandardError=journal
@@ -42,7 +51,6 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
-MemoryDenyWriteExecute=false
 
 [Install]
 WantedBy=multi-user.target
