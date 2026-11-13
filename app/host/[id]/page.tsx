@@ -1,5 +1,4 @@
 import { headers } from 'next/headers';
-import { useEffect } from 'react';
 import { notFound } from 'next/navigation';
 import HostDashboard from '@/components/HostDashboard';
 import { canManage, isOwner } from '@/lib/access';
@@ -23,7 +22,9 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
   const host = headerList.get('host');
   const proto = headerList.get('x-forwarded-proto') ?? 'http';
   const origin = host ? `${proto}://${host}` : '';
-  runDueReminders(stored, origin);
+  // Fire and forget so the dashboard renders at once, but never leave the promise
+  // unhandled: a failed send must not surface as a server error.
+  void runDueReminders(stored, origin).catch(() => undefined);
   const sms = smsSetup();
   const email = emailSetup();
   return (

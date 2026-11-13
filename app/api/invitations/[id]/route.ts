@@ -36,6 +36,10 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     ...existing,
     ...body,
     id,
+    // Ownership and co-host access belong to their own endpoints, so a design
+    // save from a co-host cannot hand them the invitation.
+    ownerId: existing.ownerId,
+    collaborators: existing.collaborators,
     // Guests and their replies are owned by the RSVP endpoints, never by a design save.
     guests: existing.guests,
     createdAt: existing.createdAt,

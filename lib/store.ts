@@ -9,17 +9,39 @@ type DB = { invitations: Record<string, Invitation> };
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
+/** Moves an unreadable store aside so the next write cannot destroy it. */
+async function quarantine(): Promise<void> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  await fs.rename(FILE, `${FILE}.unreadable-${stamp}`).catch(() => undefined);
+}
+
 async function load(): Promise<DB> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(FILE, 'utf8');
-    const parsed = JSON.parse(raw) as DB;
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.invitations !== 'object') {
-      return { invitations: {} };
-    }
-    return parsed;
-  } catch {
+    raw = await fs.readFile(FILE, 'utf8');
+  } catch (error) {
+    // A missing file is a first run; anything else means the store cannot be read.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') await quarantine();
     return { invitations: {} };
   }
+
+  try {
+    const parsed = JSON.parse(raw) as DB;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed.invitations &&
+      typeof parsed.invitations === 'object'
+    ) {
+      return parsed;
+    }
+  } catch {
+    // Fall through: unparseable JSON is corruption, not an empty store.
+  }
+
+  // Keep the damaged file instead of letting the next save overwrite every invitation.
+  await quarantine();
+  return { invitations: {} };
 }
 
 async function persist(db: DB): Promise<void> {

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Gatherly
 
 An online-invitation studio: design a card, dress the envelope, publish a guest page, collect RSVPs.
@@ -28,17 +27,21 @@ npm run build && npm start
 | `/create` | Editor — design, text, colours, envelope, backdrop, details, RSVP settings, page style, blocks |
 | `/i/<id>` | What a guest sees: envelope → card → event page → RSVP |
 | `/host/<id>` | Guest list, replies, headcount, CSV export |
+| `/host/<id>/checkin` | Door screen: scan or type a pass, undo, walk-ins |
+| `/host/<id>/seating` | Seating plan editor |
 | `lib/types.ts` | The whole data model |
-| `lib/designs.ts` | The eight designs and their palettes |
+| `lib/designs.ts` | The design catalogue and its palettes |
 | `lib/motifs.tsx` | Original decorative SVG artwork |
 | `lib/defaults.ts` | Sample wording and invitation factory |
 | `lib/store.ts` | File-backed store, serialised writes |
+| `lib/auth.ts` | Accounts, password hashing, signed session cookies |
 | `components/` | Editor, card renderer, envelope, guest view, RSVP form, host dashboard |
 
 ## Data
 
 Invitations and replies live in `.data/invitations.json` (git-ignored). Delete that file to start
-fresh — the app recreates it on the next write.
+fresh — the app recreates it on the next write. Accounts and the session secret live beside it in
+`.data/users.json` and `.data/session-secret`.
 
 ## How the card scales
 
@@ -48,8 +51,5 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 
 ## Before publishing
 
-Read §7–§9 of `REQUIREMENTS.md`. At minimum: add authentication, move the store to a real database,
-move uploads to object storage, and rate-limit the public RSVP endpoint.
-=======
-# digital-invitation
->>>>>>> origin/main
+Read §7–§9 of `REQUIREMENTS.md`. At minimum: move the store to a real database, move uploads to
+object storage, and rate-limit the public RSVP endpoint.

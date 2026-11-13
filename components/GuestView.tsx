@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import EnvelopeCard from './EnvelopeCard';
 import InvitationCard from './InvitationCard';
 import RsvpForm from './RsvpForm';
