@@ -136,6 +136,11 @@ scheduler is the unit's main process and `systemctl stop` reaches it with SIGTER
 Before the first start: `npm ci && npm run build && npm run db:migrate`, with `NODE_ENV=production`
 so session cookies are marked `secure` (which means the app must be reached over HTTPS).
 
+Point the load balancer at `GET /api/health`: it answers `200 {"status":"ok","database":"up",…}`
+when the pool can run a query and `503 {"status":"degraded","database":"down"}` when it cannot. The
+response is `no-store`, the probe gives up after four seconds, and the underlying error goes to the
+server log rather than the response body.
+
 ## How the card scales
 
 Text sizes are stored in percent of card width and rendered with CSS container query units. The same
