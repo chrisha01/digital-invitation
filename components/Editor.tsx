@@ -274,7 +274,9 @@ export default function Editor({ initial }: { initial: Invitation }) {
   const [view, setView] = useState<'card' | 'envelope'>('card');
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const mounted = useRef(false);
-  // Sync view with envelope section when tab changes
+
+  // Keep the stage in step when a section is chosen programmatically (for
+  // example selecting a text layer jumps to the Text panel).
   useEffect(() => {
     setView(section === 'envelope' ? 'envelope' : 'card');
   }, [section]);
@@ -499,7 +501,12 @@ export default function Editor({ initial }: { initial: Invitation }) {
             <button
               key={id}
               className={`nav-item ${section === id ? 'is-active' : ''}`}
-              onClick={() => setSection(id)}
+              onClick={() => {
+                setSection(id);
+                // Re-selecting Envelope must restore its preview even when the
+                // panel was already open and the stage had been switched to Card.
+                setView(id === 'envelope' ? 'envelope' : 'card');
+              }}
             >
               {label}
             </button>
