@@ -13,6 +13,10 @@ type Bucket = { count: number; resetAt: number };
 
 const buckets = new Map<string, Bucket>();
 
+/** Anonymous callers share token buckets; see `anonymousPool`. */
+type Pool = { tokens: number; updatedAt: number };
+const pools = new Map<string, Pool>();
+
 /** Well above the number of live keys any real traffic creates. */
 const MAX_BUCKETS = 5000;
 
@@ -20,12 +24,6 @@ export const CLIENT_COOKIE = 'gatherly_client';
 const CLIENT_MAX_AGE = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Callers with no id share one pool. That pool runs on a short window of its own
- * so an attacker cannot leave real guests blocked until the route's ten- or
- * fifteen-minute window expires: it drains and refills every minute.
- */
-const ANONYMOUS_WINDOW_MS = 60 * 1000;
 
 /**
  * A freshly issued id is on probation, because minting ids would otherwise be
@@ -36,6 +34,35 @@ const PROBATION_MS = 60 * 1000;
 const PROBATION_REQUESTS = 5;
 
 export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number };
+
+/**
+ * Callers with no id yet share one pool. It is a token bucket whose refill rate
+ * is the route's own rate — `limit` per `window` — so a starved pool recovers
+ * continuously instead of staying empty for the whole window, without letting
+ * more traffic through over time than the route is configured to allow.
+ */
+function anonymousPool(key: string, limit: number, windowMs: number): RateLimitResult {
+  const now = Date.now();
+  const perMs = limit / windowMs;
+  const capacity = Math.max(1, limit);
+
+  if (pools.size >= MAX_BUCKETS) {
+    // Oldest buckets have had the most time to refill; dropping them is harmless.
+    const oldest = [...pools.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt)[0];
+    if (oldest) pools.delete(oldest[0]);
+  }
+
+  const pool = pools.get(key) ?? { tokens: capacity, updatedAt: now };
+  const tokens = Math.min(capacity, pool.tokens + (now - pool.updatedAt) * perMs);
+
+  if (tokens >= 1) {
+    pools.set(key, { tokens: tokens - 1, updatedAt: now });
+    return { ok: true };
+  }
+
+  pools.set(key, { tokens, updatedAt: now });
+  return { ok: false, retryAfterSeconds: Math.max(1, Math.ceil((1 - tokens) / perMs / 1000)) };
+}
 
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
@@ -177,22 +204,17 @@ export async function rateGate(
   const address = hops ? addressFromProxy(request, hops) : null;
   const known = address ? null : await verifiedClientId(request);
 
-  let key: string;
-  let allowance = limit;
-  let window = windowMs;
+  let result: RateLimitResult;
 
-  if (address) {
-    key = `${scope}:ip:${address}`;
-  } else if (known) {
-    key = `${scope}:client:${known.id}`;
-    // New ids prove themselves on a small allowance before getting the full one.
-    if (known.ageMs < PROBATION_MS) allowance = Math.min(limit, PROBATION_REQUESTS);
+  if (!address && !known) {
+    result = anonymousPool(`${scope}:pool`, limit, windowMs);
   } else {
-    key = `${scope}:pool`;
-    window = Math.min(windowMs, ANONYMOUS_WINDOW_MS);
+    const key = `${scope}:${address ? `ip:${address}` : `client:${known?.id}`}`;
+    // New ids prove themselves on a small allowance before getting the full one.
+    const probation = !address && known ? known.ageMs < PROBATION_MS : false;
+    const allowance = probation ? Math.min(limit, PROBATION_REQUESTS) : limit;
+    result = rateLimit(key, allowance, windowMs);
   }
-
-  const result = rateLimit(key, allowance, window);
   if (!result.ok) {
     return {
       ok: false,

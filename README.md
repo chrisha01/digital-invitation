@@ -78,7 +78,8 @@ the address it saw, so the guess is counted in from the right:
 With `2`, a chain of `client, cdn-edge` resolves to the guest rather than the CDN edge. Make sure the
 outermost proxy overwrites, rather than passes through, a client-supplied `X-Forwarded-For`.
 
-Callers with no id yet share one pool. That pool runs on a **one-minute** window, so a burst or an
-attack can only ever cost a guest a short wait, never the route's full ten or fifteen minutes. A
-freshly issued id is on probation for its first minute (five requests), which is what stops a script
-from farming ids to dodge that short window.
+Callers with no id yet share one pool. It is a token bucket that refills at the route's own rate —
+the full allowance arrives as one burst, then one slot at a time across the window — so a starved
+pool recovers on its own without ever letting more through, over time, than the route allows.
+A freshly issued id is on probation for its first minute (five requests), so a script cannot farm
+ids to dodge the shared pool.
