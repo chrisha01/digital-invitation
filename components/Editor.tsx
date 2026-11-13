@@ -426,12 +426,15 @@ export default function Editor({ initial }: { initial: Invitation }) {
     });
   }
 
+  const [uploading, setUploading] = useState<'photo' | 'portrait' | 'backdrop' | null>(null);
+
   async function onPhoto(file: File | null) {
     if (!file) return;
     if (file.size > 3_500_000) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
+    setUploading('photo');
     try {
       const url = await uploadImage(file);
       set((draft) => {
@@ -439,6 +442,8 @@ export default function Editor({ initial }: { initial: Invitation }) {
       });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -448,6 +453,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
+    setUploading('portrait');
     try {
       const url = await uploadImage(file);
       set((draft) => {
@@ -456,6 +462,8 @@ export default function Editor({ initial }: { initial: Invitation }) {
       });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -465,6 +473,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
+    setUploading('backdrop');
     try {
       const url = await uploadImage(file);
       set((draft) => {
@@ -472,6 +481,8 @@ export default function Editor({ initial }: { initial: Invitation }) {
       });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -626,6 +637,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       className="input"
                       type="file"
                       accept="image/*"
+                      disabled={uploading !== null}
                       onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
                     />
                     <button
@@ -644,9 +656,13 @@ export default function Editor({ initial }: { initial: Invitation }) {
                     className="input"
                     type="file"
                     accept="image/*"
+                    disabled={uploading !== null}
                     onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
                   />
                 )}
+                {uploading === 'photo' ? (
+                  <span className="field-hint">Uploading…</span>
+                ) : null}
                 {inv.card.photo ? (
                   <Range
                     label="Photo opacity"
@@ -676,13 +692,18 @@ export default function Editor({ initial }: { initial: Invitation }) {
                     />
                   ) : null}
                   <label className="btn btn-ghost btn-small upload-pick">
-                    {inv.card.portrait ? 'Replace portrait' : 'Choose portrait'}
+                    {uploading === 'portrait'
+                      ? 'Uploading…'
+                      : inv.card.portrait
+                        ? 'Replace portrait'
+                        : 'Choose portrait'}
                     <input
                       className="upload-input"
                       type="file"
                       accept="image/*"
+                      disabled={uploading !== null}
                       onChange={(e) => {
-                        onPortrait(e.target.files?.[0] ?? null);
+                        void onPortrait(e.target.files?.[0] ?? null);
                         e.target.value = '';
                       }}
                     />
@@ -1252,11 +1273,16 @@ export default function Editor({ initial }: { initial: Invitation }) {
                     />
                   ) : null}
                   <label className="btn btn-ghost btn-small upload-pick">
-                    {inv.backdrop.image ? 'Replace image' : 'Choose image'}
+                    {uploading === 'backdrop'
+                      ? 'Uploading…'
+                      : inv.backdrop.image
+                        ? 'Replace image'
+                        : 'Choose image'}
                     <input
                       className="upload-input"
                       type="file"
                       accept="image/*"
+                      disabled={uploading !== null}
                       onChange={(e) => {
                         void onBackdropImage(e.target.files?.[0] ?? null);
                         e.target.value = '';

@@ -154,6 +154,19 @@ export async function claimOrphanInvitations(ownerId: string): Promise<number> {
   return rows.length;
 }
 
+/** Whether any invitation still points at this uploaded image. */
+export async function isImageReferenced(url: string): Promise<boolean> {
+  const { rows } = await getPool().query(
+    `select 1 from invitations
+      where document->'card'->>'photo' = $1
+         or document->'card'->>'portrait' = $1
+         or document->'backdrop'->>'image' = $1
+      limit 1`,
+    [url],
+  );
+  return rows.length > 0;
+}
+
 /** Invitations where this email is a co-host but not the owner. */
 export async function listSharedInvitations(email: string): Promise<InvitationSummary[]> {
   const { rows } = await getPool().query<DocumentRow>(

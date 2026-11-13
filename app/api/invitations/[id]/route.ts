@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { canManage, isOwner } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
+import { discardImages, imageUrls, replacedImages } from '@/lib/images';
 import { deleteInvitation, getInvitation, putInvitation } from '@/lib/store';
 import type { Invitation } from '@/lib/types';
 
@@ -46,7 +47,10 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     updatedAt: new Date().toISOString(),
   };
 
+  const before = imageUrls(existing);
   await putInvitation(next);
+  // A replaced photo leaves an object behind; remove it once the save is stored.
+  await discardImages(replacedImages(before, imageUrls(next)));
   return NextResponse.json({ invitation: next });
 }
 
@@ -57,6 +61,9 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   if (!existing || !isOwner(existing, user)) {
     return NextResponse.json({ error: 'Only the owner can delete this invitation.' }, { status: 403 });
   }
+  const removed = imageUrls(existing);
   await deleteInvitation(id);
+  // Deleting the row first means the reference check cannot see this invitation.
+  await discardImages(removed);
   return NextResponse.json({ ok: true });
 }

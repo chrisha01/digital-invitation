@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
 
 /** Matches the limit the editor already enforced on inline uploads. */
@@ -104,4 +104,38 @@ export async function putImage(
   );
 
   return `${options.publicBase}/${key}`;
+}
+
+/** The three spots an invitation keeps an uploaded image. */
+export function imageUrls(invitation: {
+  card?: { photo?: string | null; portrait?: string | null };
+  backdrop?: { image?: string | null };
+} | null): string[] {
+  const candidates = [invitation?.card?.photo, invitation?.card?.portrait, invitation?.backdrop?.image];
+  return candidates.filter((url): url is string => typeof url === 'string' && url.length > 0);
+}
+
+/** True only for objects this app stored; data URLs and foreign links are left alone. */
+export function isStoredImageUrl(url: string): boolean {
+  const { publicBase } = config();
+  return Boolean(publicBase && storageConfigured() && url.startsWith(`${publicBase}/`));
+}
+
+function keyFromUrl(url: string): string | null {
+  const { publicBase } = config();
+  if (!publicBase || !url.startsWith(`${publicBase}/`)) return null;
+  const key = url.slice(publicBase.length + 1).split('?')[0];
+  return key ? decodeURIComponent(key) : null;
+}
+
+/** Removes one stored object. Returns false when the URL is not ours. */
+export async function deleteImage(url: string): Promise<boolean> {
+  const options = config();
+  const key = keyFromUrl(url);
+  if (!key || !storageConfigured()) return false;
+
+  await s3(options, Boolean(options.endpoint)).send(
+    new DeleteObjectCommand({ Bucket: options.bucket, Key: key }),
+  );
+  return true;
 }

@@ -79,9 +79,11 @@ S3_REGION=auto                                          # R2 only
 ```
 
 Uploads are signed-in only, capped at 3.5 MB, rate limited, and the bytes are sniffed rather than
-trusting the declared type; keys are scoped `invitations/<owner>/<random>.<ext>`. With none of
-those settings the endpoint answers 503 and the editor falls back to inlining images as data URLs,
-so a bare checkout still works. Invitations created before this change keep their data URLs.
+trusting the declared type; keys are scoped `invitations/<owner>/<random>.<ext>`. Replacing a photo
+or deleting an invitation removes the old object once no invitation still references it, and only
+URLs under `S3_PUBLIC_BASE_URL` are ever deleted. With none of those settings the endpoint answers
+503 and the editor falls back to inlining images as data URLs, so a bare checkout still works.
+Invitations created before this change keep their data URLs.
 
 ## How the card scales
 

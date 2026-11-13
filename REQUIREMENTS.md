@@ -231,8 +231,9 @@ infrastructure or commercial agreements rather than design work:
    links are the reliable path; production needs signed, single-purpose tokens.
 4. **Uploads are half-moved.** With `S3_*` configured, images go to object storage and the document
    keeps a URL; without it the editor still inlines data URLs, and every invitation made before the
-   change keeps the bytes it already has. Nothing migrates those, and nothing deletes an object
-   when a photo is replaced or an invitation removed — add a sweep before taking real uploads.
+   change keeps the bytes it already has. Replaced images and the images of a deleted invitation are
+   removed from the bucket once no invitation references them, but nothing migrates the old inline
+   data URLs — add a sweep before taking real uploads.
 5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
    password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. The key is the
    address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of
