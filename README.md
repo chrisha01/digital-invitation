@@ -40,23 +40,28 @@ npm run build && npm start
 
 ## Data
 
-Invitations and replies live in Postgres, one document per invitation in the `invitations` table.
-Put your connection string in `.env`:
+Invitations, replies, accounts and the session signing key all live in Postgres: one document per
+invitation in the `invitations` table, password hashes in `users`, and the cookie key in
+`app_settings` so every instance signs and verifies the same sessions. Put your connection string in
+`.env`:
 
 ```bash
 DATABASE_URL=postgresql://…
-npm run db:migrate   # create or upgrade the tables
-npm run db:import    # one-off: copy .data/invitations.json into the database
+npm run db:migrate         # create or upgrade the tables
+npm run db:import          # one-off: copy .data/invitations.json in
+npm run db:import-users    # one-off: copy .data/users.json and the session secret in
 ```
 
-`db:import` only **adds** invitations the database does not already have. An id that is already
-present is skipped and left exactly as it is, so re-running the import can never roll back edits
-made since — it is there to bring a fresh database up to date, not to sync backwards. Writes go
+Both imports only **add** rows the database does not already have. An id or email that is already
+present is skipped and left exactly as it is, so re-running an import can never roll back edits made
+since — they bring a fresh database up to date, they do not sync backwards. Invitation writes go
 through a transaction that locks the row, so two requests editing the same invitation cannot lose
 each other's changes.
 
-Accounts and the session secret still live in `.data/users.json` and `.data/session-secret`; moving
-them into Postgres is the next step. `GATHERLY_DATA_DIR` still points those files somewhere else.
+`db:import-users` also carries over `.data/session-secret`, and only when that key is not already in
+`app_settings`; that is what keeps the cookies already in people's browsers valid across the move.
+The `.data/` files are now read by those two import scripts and nothing else — the app itself never
+touches them. `GATHERLY_DATA_DIR` still points the imports somewhere else.
 
 ## How the card scales
 
@@ -66,8 +71,8 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 
 ## Before publishing
 
-Read §7–§9 of `REQUIREMENTS.md`. At minimum: move the store to a real database, move uploads to
-object storage, and move the in-memory rate-limit counters to a shared store.
+Read §7–§9 of `REQUIREMENTS.md`. At minimum: move uploads to object storage, move the in-memory
+rate-limit counters to a shared store, and run `npm run db:migrate` as part of every deploy.
 
 Password resets are emailed when a mail provider is configured (`RESEND_API_KEY` + `EMAIL_FROM`).
 With no provider the link is only returned in development — production never hands it back.

@@ -1,28 +1,22 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { dataDir } from './paths';
-
-const usersFile = () => path.join(dataDir(), 'users.json');
-const secretFile = () => path.join(dataDir(), 'session-secret');
+import { getPool } from './db';
 
 export const SESSION_COOKIE = 'envelope_session';
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 const RESET_MINUTES = 30;
 
-type StoredUser = {
+type UserRow = {
   id: string;
   name: string;
   email: string;
   salt: string;
   hash: string;
-  createdAt: string;
-  /** bumped on password change, so old sessions stop working */
-  passwordChangedAt: string;
-  resetHash?: string;
-  resetExpires?: number;
+  created_at: Date;
+  password_changed_at: Date;
+  reset_hash: string | null;
+  reset_expires: string | null;
 };
 
 export type SessionUser = {
@@ -33,47 +27,22 @@ export type SessionUser = {
   sessionVersion: string;
 };
 
-type UsersDB = { users: StoredUser[] };
+const iso = (value: Date | string) => new Date(value).toISOString();
 
-let chain: Promise<unknown> = Promise.resolve();
-function queued<T>(fn: () => Promise<T>): Promise<T> {
-  const run = chain.then(fn, fn);
-  chain = run.catch(() => undefined);
-  return run;
-}
-
-async function loadUsers(): Promise<UsersDB> {
-  try {
-    const raw = await fs.readFile(usersFile(), 'utf8');
-    const parsed = JSON.parse(raw) as UsersDB;
-    if (!parsed || !Array.isArray(parsed.users)) return { users: [] };
-    return parsed;
-  } catch {
-    return { users: [] };
-  }
-}
-
-async function saveUsers(db: UsersDB): Promise<void> {
-  const file = usersFile();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
-  await fs.rename(tmp, file);
+function toPublic(row: UserRow): SessionUser {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    createdAt: iso(row.created_at),
+    // Accounts made before sessions were versioned were signed with their
+    // creation time, so that is what the import stores here too.
+    sessionVersion: iso(row.password_changed_at),
+  };
 }
 
 const digest = (password: string, salt: string) => scryptSync(password, salt, 64).toString('hex');
 const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
-
-function toPublic(user: StoredUser): SessionUser {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    createdAt: user.createdAt,
-    // Accounts made before sessions were versioned keep working until reset.
-    sessionVersion: user.passwordChangedAt ?? user.createdAt,
-  };
-}
 
 export function validateSignup(input: {
   name?: string;
@@ -104,28 +73,33 @@ export async function createUser(
   email: string,
   password: string,
 ): Promise<SessionUser | null> {
-  return queued(async () => {
-    const db = await loadUsers();
-    if (db.users.some((user) => user.email === email)) return null;
-    const salt = randomBytes(16).toString('hex');
-    const user: StoredUser = {
-      id: `user_${randomBytes(8).toString('hex')}`,
-      name,
-      email,
-      salt,
-      hash: digest(password, salt),
-      createdAt: new Date().toISOString(),
-      passwordChangedAt: new Date().toISOString(),
-    };
-    db.users.push(user);
-    await saveUsers(db);
-    return toPublic(user);
-  });
+  const id = `user_${randomBytes(8).toString('hex')}`;
+  const salt = randomBytes(16).toString('hex');
+  const now = new Date();
+
+  // The unique email index is what settles a race between two signups.
+  const result = await getPool().query(
+    `insert into users (id, name, email, salt, hash, created_at, password_changed_at)
+     values ($1, $2, $3, $4, $5, $6, $6)
+     on conflict (email) do nothing`,
+    [id, name, email.trim().toLowerCase(), salt, digest(password, salt), now],
+  );
+  if (!result.rowCount) return null;
+
+  return {
+    id,
+    name,
+    email: email.trim().toLowerCase(),
+    createdAt: now.toISOString(),
+    sessionVersion: now.toISOString(),
+  };
 }
 
 export async function verifyUser(email: string, password: string): Promise<SessionUser | null> {
-  const db = await loadUsers();
-  const user = db.users.find((candidate) => candidate.email === email.trim().toLowerCase());
+  const { rows } = await getPool().query<UserRow>('select * from users where email = $1', [
+    email.trim().toLowerCase(),
+  ]);
+  const user = rows[0];
   if (!user) return null;
 
   const attempt = Buffer.from(digest(password, user.salt), 'hex');
@@ -135,15 +109,16 @@ export async function verifyUser(email: string, password: string): Promise<Sessi
 }
 
 export async function getUserById(id: string): Promise<SessionUser | null> {
-  const db = await loadUsers();
-  const user = db.users.find((candidate) => candidate.id === id);
-  return user ? toPublic(user) : null;
+  const { rows } = await getPool().query<UserRow>('select * from users where id = $1', [id]);
+  return rows[0] ? toPublic(rows[0]) : null;
 }
 
 /** True while this account is the only one, used to adopt pre-account invitations. */
 export async function isOnlyUser(userId: string): Promise<boolean> {
-  const db = await loadUsers();
-  return db.users.length === 1 && db.users[0].id === userId;
+  const { rows } = await getPool().query<{ total: number; first: string | null }>(
+    'select count(*)::int as total, min(id) as first from users',
+  );
+  return rows[0].total === 1 && rows[0].first === userId;
 }
 
 /**
@@ -151,60 +126,70 @@ export async function isOnlyUser(userId: string): Promise<boolean> {
  * that email, so the route can answer without saying which.
  */
 export async function createResetToken(email: string): Promise<string | null> {
-  return queued(async () => {
-    const db = await loadUsers();
-    const user = db.users.find((candidate) => candidate.email === email.trim().toLowerCase());
-    if (!user) return null;
-
-    const token = randomBytes(24).toString('base64url');
-    user.resetHash = tokenHash(token);
-    user.resetExpires = Date.now() + RESET_MINUTES * 60 * 1000;
-    await saveUsers(db);
-    return token;
-  });
+  const token = randomBytes(24).toString('base64url');
+  const result = await getPool().query(
+    'update users set reset_hash = $2, reset_expires = $3 where email = $1',
+    [email.trim().toLowerCase(), tokenHash(token), Date.now() + RESET_MINUTES * 60 * 1000],
+  );
+  return result.rowCount ? token : null;
 }
 
 export async function resetPassword(token: string, password: string): Promise<SessionUser | null> {
-  return queued(async () => {
-    const db = await loadUsers();
-    const hash = tokenHash(token);
-    const user = db.users.find(
-      (candidate) =>
-        candidate.resetHash === hash &&
-        typeof candidate.resetExpires === 'number' &&
-        candidate.resetExpires > Date.now(),
-    );
-    if (!user) return null;
+  const pool = getPool();
+  const { rows } = await pool.query<UserRow>(
+    `select * from users
+      where reset_hash = $1 and reset_expires is not null and reset_expires > $2`,
+    [tokenHash(token), Date.now()],
+  );
+  const user = rows[0];
+  if (!user) return null;
 
-    const salt = randomBytes(16).toString('hex');
-    user.salt = salt;
-    user.hash = digest(password, salt);
-    user.passwordChangedAt = new Date().toISOString();
-    delete user.resetHash;
-    delete user.resetExpires;
-    await saveUsers(db);
-    return toPublic(user);
-  });
+  const salt = randomBytes(16).toString('hex');
+  const changed = new Date();
+  const { rows: updated } = await pool.query<UserRow>(
+    `update users
+        set salt = $2, hash = $3, password_changed_at = $4, reset_hash = null, reset_expires = null
+      where id = $1
+      returning *`,
+    [user.id, salt, digest(password, salt), changed],
+  );
+  return updated[0] ? toPublic(updated[0]) : null;
 }
 
 let cachedSecret: Promise<string> | null = null;
 
+/**
+ * The signing key for session cookies, kept in the database so every instance
+ * signs and verifies the same cookies and a restart cannot log everybody out.
+ */
 export function sessionSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
-  cachedSecret = (async () => {
-    try {
-      const existing = (await fs.readFile(secretFile(), 'utf8')).trim();
-      if (existing) return existing;
-    } catch {
-      // Fall through and create one.
-    }
+
+  const pending = (async () => {
+    const pool = getPool();
+    const existing = await pool.query<{ value: string }>(
+      "select value from app_settings where key = 'session_secret'",
+    );
+    if (existing.rows[0]?.value) return existing.rows[0].value;
+
     const value = randomBytes(32).toString('hex');
-    const file = secretFile();
-    await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, value, 'utf8');
-    return value;
+    // Another instance may create it first; whoever loses reads the winner.
+    await pool.query(
+      "insert into app_settings (key, value) values ('session_secret', $1) on conflict (key) do nothing",
+      [value],
+    );
+    const stored = await pool.query<{ value: string }>(
+      "select value from app_settings where key = 'session_secret'",
+    );
+    return stored.rows[0].value;
   })();
-  return cachedSecret;
+
+  // Never cache a failure: a database blip must not poison the secret for good.
+  cachedSecret = pending;
+  pending.catch(() => {
+    cachedSecret = null;
+  });
+  return pending;
 }
 
 async function sign(payload: string): Promise<string> {

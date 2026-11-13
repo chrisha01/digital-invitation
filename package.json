@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3210",
     "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
-    "db:import": "node --env-file-if-exists=.env scripts/db-import.mjs"
+    "db:import": "node --env-file-if-exists=.env scripts/db-import.mjs",
+    "db:import-users": "node --env-file-if-exists=.env scripts/db-import-users.mjs"
   },
   "dependencies": {
     "jsqr": "^1.4.0",

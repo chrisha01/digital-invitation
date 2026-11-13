@@ -216,18 +216,22 @@ infrastructure or commercial agreements rather than design work:
 
 ## 9. Known limitations
 
-1. **Invitations are in Postgres; accounts are not yet.** Invitations and replies (including guests,
-   replies, seating, reminders) are stored as whole documents in the `invitations` table, with
-   `owner_id`, `updated_at` and `collaborators` lifted into indexed columns. Changes take a row lock
-   inside a transaction, so concurrent edits cannot lose each other. Accounts, password hashes and
-   the session secret are still files under `.data/`.
-2. **Accounts are file-backed and single-machine.** Sign-up, sign-in, password reset and signed
-   session cookies live in `.data/users.json`, so every account exists only on this host. Move to a
-   shared user table (or `@freebuff/auth`) before running more than one instance.
+1. **Everything lives in Postgres.** Invitations and replies (including guests, replies, seating,
+   reminders) are stored as whole documents in the `invitations` table, with `owner_id`,
+   `updated_at` and `collaborators` lifted into indexed columns. Accounts, scrypt password hashes
+   and reset tokens are in `users`; the cookie signing key is a row in `app_settings`, so any
+   instance signs and verifies the same sessions. Invitation writes take a row lock inside a
+   transaction, so concurrent edits cannot lose each other. The `.data/*.json` files are import
+   sources only.
+2. **Sessions are stateless cookies.** Signing out clears the cookie, but a copied cookie stays
+   valid until it expires or the password changes; a reset bumps the password version and retires
+   every older session. There is no revocation list yet, so a leaked cookie can only be killed by
+   resetting the password or shortening `SESSION_MAX_AGE`.
 3. **Guest identity is name/email based**, so a reply can overwrite a same-named guest. Personal
    links are the reliable path; production needs signed, single-purpose tokens.
-4. **Uploaded images are stored inline as data URLs**, which bloats the JSON store. Move to R2 (or
-   any object store) with size/type validation server-side for production.
+4. **Uploaded images are stored inline as data URLs**, inside each invitation document. One portrait
+   can outweigh every other row combined, so move to R2 (or any object store) with size/type
+   validation server-side before taking real uploads.
 5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
    password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. The key is the
    address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of
