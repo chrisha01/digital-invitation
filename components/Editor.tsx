@@ -274,6 +274,11 @@ export default function Editor({ initial }: { initial: Invitation }) {
   const [view, setView] = useState<'card' | 'envelope'>('card');
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const mounted = useRef(false);
+  // Sync view with envelope section when tab changes
+  useEffect(() => {
+    setView(section === 'envelope' ? 'envelope' : 'card');
+  }, [section]);
+
 
   const set = useCallback((mutate: (draft: Invitation) => void) => {
     setInv((prev) => {

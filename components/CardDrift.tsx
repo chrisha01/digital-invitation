@@ -1,13 +1,14 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { DriftId } from '@/lib/types';
 
-export const DRIFTS: { id: DriftId | 'none'; label: string }[] = [
+export const DRIFTS: { id: DriftId | 'none' | 'snow'; label: string }[] = [
   { id: 'none', label: 'None' },
   { id: 'leaves', label: 'Falling leaves' },
   { id: 'petals', label: 'Drifting petals' },
   { id: 'confetti', label: 'Confetti' },
   { id: 'sparkle', label: 'Gilt sparkle' },
   { id: 'motes', label: 'Dust motes' },
+  { id: 'snow', label: 'Falling snow' },
 ];
 
 type Vars = CSSProperties & Record<string, string | number>;
@@ -18,6 +19,7 @@ const COUNTS: Record<DriftId, number> = {
   confetti: 16,
   sparkle: 14,
   motes: 13,
+  snow: 15,
 };
 
 const SHAPES: Record<DriftId, string> = {
@@ -26,6 +28,7 @@ const SHAPES: Record<DriftId, string> = {
   confetti: 'confetti',
   sparkle: 'sparkle',
   motes: 'mote',
+  snow: 'snowflake',
 };
 
 /**
@@ -44,14 +47,16 @@ function between(index: number, salt: number, min: number, max: number): number 
   return Math.round((min + fraction(index, salt) * (max - min)) * 100) / 100;
 }
 
-function falling(index: number, kind: 'leaves' | 'petals' | 'confetti', ink: string, accent: string): Vars {
+function falling(index: number, kind: 'leaves' | 'petals' | 'confetti' | 'snow', ink: string, accent: string): Vars {
   const width =
     kind === 'confetti'
       ? between(index, 2, 1, 1.6)
       : kind === 'leaves'
         ? between(index, 2, 2.8, 4.6)
-        : between(index, 2, 2.6, 4.4);
-  const height = kind === 'confetti' ? between(index, 3, 2.8, 3.8) : width * (kind === 'leaves' ? 1.75 : 1.15);
+        : kind === 'snow'
+          ? between(index, 3, 1.5, 3.5)
+          : between(index, 2, 2.6, 4.4);
+  const height = kind === 'confetti' ? between(index, 3, 2.8, 3.8) : width * (kind === 'leaves' ? 1.75 : kind === 'snow' ? 1.5 : 1.15);
   const spin = kind === 'confetti' ? between(index, 6, -720, 720) : between(index, 6, 180, 540);
   return {
     left: `${between(index, 4, -2, 98)}%`,
@@ -59,7 +64,7 @@ function falling(index: number, kind: 'leaves' | 'petals' | 'confetti', ink: str
     height: `${Math.round(height * 100) / 100}cqw`,
     opacity: between(index, 7, 0.45, 0.9),
     background: fraction(index, 8) > 0.55 ? ink : accent,
-    animationDuration: `${between(index, 9, kind === 'confetti' ? 7 : 13, kind === 'confetti' ? 13 : 24)}s`,
+    animationDuration: `${between(index, 9, kind === 'confetti' ? 7 : kind === 'snow' ? 16 : 13, kind === 'confetti' ? 13 : kind === 'snow' ? 18 : 24)}s`,
     animationDelay: `-${between(index, 10, 0, 20)}s`,
     ['--sway' as string]: `${between(index, 5, -9, 9)}cqw`,
     ['--spin' as string]: `${spin}deg`,
@@ -114,7 +119,9 @@ export default function CardDrift({
         ? glint(index, accent)
         : kind === 'motes'
           ? mote(index, ink)
-          : falling(index, kind, ink, accent);
+          : kind === 'snow'
+            ? snowflake(index, ink)
+            : falling(index, kind, ink, accent);
     bits.push(
       <span key={index} className={`drift-bit is-${SHAPES[kind]}`} style={style} />,
     );
@@ -126,3 +133,27 @@ export default function CardDrift({
     </div>
   );
 }
+
+function snowflake(index: number, ink: string): Vars {
+  const size = between(index, 3, 1, 2.5);
+  const sway = between(index, 5, -10, 10);
+  const spin = between(index, 6, 0, 360);
+  const duration = between(index, 7, 12, 20);
+  const delay = between(index, 8, 0, 15);
+  return {
+    left: `${between(index, 4, -2, 98)}%`,
+    top: `${between(index, 5, -10, 10)}%`,
+    width: `${size}cqw`,
+    height: `${size}cqw`,
+    background: ink,
+    borderRadius: '50%',
+    animationName: 'snow-fall',
+    animationDuration: `${duration}s`,
+    animationDelay: `-${delay}s`,
+    animationTimingFunction: 'ease-in-out',
+    animationIterationCount: 'infinite',
+    ['--sway' as string]: `${sway}deg`,
+    ['--spin' as string]: `${spin}deg`,
+  };
+}
+

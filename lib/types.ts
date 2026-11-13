@@ -23,7 +23,7 @@ export type TextLayer = {
 };
 
 /** Animated artwork that drifts across the card. */
-export type DriftId = 'leaves' | 'petals' | 'confetti' | 'sparkle' | 'motes';
+export type DriftId = 'leaves' | 'petals' | 'confetti' | 'sparkle' | 'motes' | 'snow';
 
 /** Silhouette of the frame around a card portrait. */
 export type PortraitShape = 'circle' | 'arch' | 'oval' | 'soft';

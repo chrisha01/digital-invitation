@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { useEffect } from 'react';
 import { notFound } from 'next/navigation';
 import HostDashboard from '@/components/HostDashboard';
 import { canManage, isOwner } from '@/lib/access';
@@ -22,16 +23,15 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
   const host = headerList.get('host');
   const proto = headerList.get('x-forwarded-proto') ?? 'http';
   const origin = host ? `${proto}://${host}` : '';
-  const invitation = await runDueReminders(stored, origin);
-
+  runDueReminders(stored, origin);
   const sms = smsSetup();
   const email = emailSetup();
   return (
     <HostDashboard
-      inv={invitation}
+      inv={stored}
       sms={{ configured: Boolean(sms.provider), missing: sms.missing }}
       mail={{ configured: Boolean(email.provider), missing: email.missing }}
-      role={isOwner(invitation, user) ? 'owner' : 'collaborator'}
+      role={isOwner(stored, user) ? 'owner' : 'collaborator'}
     />
   );
 }

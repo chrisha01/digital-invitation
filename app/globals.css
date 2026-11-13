@@ -1742,6 +1742,104 @@ input[type='range'] {
   }
 }
 
+/* hero art gentle float */
+@keyframes hero-float {
+  from,
+  to {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+}
+
+.hero-art-card {
+  animation: hero-float 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-art-card {
+    animation: none;
+  }
+}
+
+/* holiday card motions */
+@keyframes snow-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(var(--snow-distance, 120px)) rotate(var(--snow-spin, 180deg));
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(var(--snow-distance, 160px)) rotate(var(--snow-spin, 360deg));
+    opacity: 0;
+  }
+}
+
+@keyframes sparkle-flash {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+@keyframes snow-twirl {
+  from {
+    transform: rotate(0deg) translateY(0);
+  }
+  to {
+    transform: rotate(360deg) translateY(var(--snow-distance, 140px));
+  }
+}
+
+.is-snow-flake {
+  position: absolute;
+  top: 0;
+  font-size: var(--snow-size, 12px);
+  color: var(--accent, #b08d57);
+  text-shadow: 0 0 2px rgba(176, 141, 87, 0.5);
+  animation: snow-fall var(--snow-duration, 8s) var(--snow-easing, ease-in-out) infinite;
+  will-change: transform, opacity;
+}
+
+.sparkle {
+  position: absolute;
+  width: var(--sparkle-size, 6px);
+  height: var(--sparkle-size, 6px);
+  background: var(--accent, #b08d57);
+  border-radius: 50%;
+  opacity: 0;
+  animation: sparkle-flash var(--sparkle-duration, 2s) var(--sparkle-easing, ease-in-out) infinite;
+  will-change: opacity, transform;
+}
+
+.twinkle-snow {
+  --snow-size: 14px;
+  --snow-distance: 140px;
+  --snow-duration: 10s;
+  --snow-easing: ease-in-out;
+  animation: snow-twirl 12s linear infinite;
+  color: #b08d57;
+  text-shadow: 0 0 3px rgba(176, 141, 87, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-snow-flake,
+  .sparkle,
+  .twinkle-snow {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
 .guest-page {
   width: 100%;
   max-width: 660px;

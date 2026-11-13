@@ -29,7 +29,7 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
           .map((row) => (row.name.startsWith('Guest of ') ? '' : row.name))
       : [],
   );
-  const [adults, setAdults] = useState(guest?.adults ?? 1);
+  const [adults, setAdults] = useState(Math.max(1, guest?.adults ?? 1));
   const [children, setChildren] = useState(guest?.children ?? 0);
   const [answers, setAnswers] = useState<Record<string, string>>(guest?.answers ?? {});
   const [message, setMessage] = useState(guest?.message ?? '');
@@ -70,7 +70,7 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
           smsConsent: phone.trim() ? smsConsent : false,
           attending,
           plusOnes: inv.settings.allowPlusOnes ? plusOnes : 0,
-          adults: inv.settings.headcount ? adults : attending === 'yes' ? 1 : 0,
+          adults: inv.settings.headcount ? Math.max(1, adults) : Math.max(1, attending === 'yes' ? 1 : 0),
           children: inv.settings.headcount ? children : 0,
           companions: Array.from({ length: plusOnes }, (_, index) => companions[index] ?? ''),
           answers,
