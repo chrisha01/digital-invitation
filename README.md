@@ -52,4 +52,7 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 ## Before publishing
 
 Read §7–§9 of `REQUIREMENTS.md`. At minimum: move the store to a real database, move uploads to
-object storage, and rate-limit the public RSVP endpoint.
+object storage, and move the in-memory rate-limit counters to a shared store.
+
+Password resets are emailed when a mail provider is configured (`RESEND_API_KEY` + `EMAIL_FROM`).
+With no provider the link is only returned in development — production never hands it back.

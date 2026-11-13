@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { newId } from '@/lib/defaults';
+import { callerKey, rateLimit, tooManyRequests } from '@/lib/rate-limit';
 import { mutateInvitation } from '@/lib/store';
 import type { Guest, RsvpStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+/** This endpoint is public — guests reply without signing in. */
+const RSVPS_PER_WINDOW = 30;
+const WINDOW_MS = 10 * 60 * 1000;
 
 class RsvpError extends Error {
   status: number;
@@ -42,6 +47,15 @@ const partySize = (guest: Guest) =>
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+
+  const limit = rateLimit(callerKey(request, `rsvp:${id}`), RSVPS_PER_WINDOW, WINDOW_MS);
+  if (!limit.ok) {
+    return NextResponse.json(tooManyRequests(limit.retryAfterSeconds), {
+      status: 429,
+      headers: { 'retry-after': String(limit.retryAfterSeconds) },
+    });
+  }
+
   const body = (await request.json().catch(() => null)) as Body | null;
 
   const name = (body?.name ?? '').trim().slice(0, 120);

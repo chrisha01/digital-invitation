@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export default function ResetForm({ token }: { token?: string }) {
+export default function ResetForm({ token, canEmail }: { token?: string; canEmail: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -139,8 +139,9 @@ export default function ResetForm({ token }: { token?: string }) {
           </div>
         ) : (
           <p className="muted small">
-            If that email has an account, a reset link has been created. Try a different address if
-            nothing appears.
+            {canEmail
+              ? 'If that email has an account, a reset link is on its way. Check the inbox and the spam folder.'
+              : 'This server has no email service connected, so a reset link cannot be delivered. Ask whoever runs this account to reset the password for you.'}
           </p>
         )
       ) : null}

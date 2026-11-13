@@ -7,11 +7,23 @@ import {
   sessionCookieOptions,
   validateSignup,
 } from '@/lib/auth';
+import { callerKey, rateLimit, tooManyRequests } from '@/lib/rate-limit';
 import { claimOrphanInvitations } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
+/** Making accounts is cheap to script and costly to clear up. */
+const SIGNUPS_PER_HOUR = 10;
+
 export async function POST(request: Request) {
+  const limit = rateLimit(callerKey(request, 'signup'), SIGNUPS_PER_HOUR, 60 * 60 * 1000);
+  if (!limit.ok) {
+    return NextResponse.json(tooManyRequests(limit.retryAfterSeconds), {
+      status: 429,
+      headers: { 'retry-after': String(limit.retryAfterSeconds) },
+    });
+  }
+
   const body = (await request.json().catch(() => null)) as
     | { name?: string; email?: string; password?: string }
     | null;

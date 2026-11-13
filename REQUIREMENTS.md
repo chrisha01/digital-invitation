@@ -218,13 +218,16 @@ infrastructure or commercial agreements rather than design work:
 
 1. **Storage is a single JSON file** (`.data/invitations.json`). Fine for one host on one machine;
    not multi-tenant. Writes are serialised in-process to avoid clobbering.
-2. **No authentication.** Anyone with the dashboard URL sees the guest list; anyone with an
-   invitation URL can reply. Add `@freebuff/auth` and scope records to `user.sub` before publishing.
+2. **Accounts are file-backed and single-machine.** Sign-up, sign-in, password reset and signed
+   session cookies live in `.data/users.json`, so every account exists only on this host. Move to a
+   shared user table (or `@freebuff/auth`) before running more than one instance.
 3. **Guest identity is name/email based**, so a reply can overwrite a same-named guest. Personal
    links are the reliable path; production needs signed, single-purpose tokens.
 4. **Uploaded images are stored inline as data URLs**, which bloats the JSON store. Move to R2 (or
    any object store) with size/type validation server-side for production.
-5. **Public endpoints are unthrottled.** Add rate limiting before any public deployment.
+5. **Rate limits are per process.** Sign-in, sign-up, password reset and the public RSVP endpoint
+   are throttled in `lib/rate-limit.ts`, but the counters live in memory and reset on restart.
+   Move them to a shared store once the app runs on more than one process.
 6. Deadline and capacity checks use the server clock; there is no timezone per event yet.
 
 ---
