@@ -154,6 +154,19 @@ export async function claimOrphanInvitations(ownerId: string): Promise<number> {
   return rows.length;
 }
 
+/** Every image URL any invitation references, for the orphan sweep. */
+export async function listImageUrls(): Promise<string[]> {
+  const { rows } = await getPool().query<{ url: string | null }>(
+    `select distinct url from (
+       select document->'card'->>'photo' as url from invitations
+       union all select document->'card'->>'portrait' from invitations
+       union all select document->'backdrop'->>'image' from invitations
+     ) urls
+     where url is not null`,
+  );
+  return rows.map((row) => row.url).filter((url): url is string => Boolean(url));
+}
+
 /** Whether any invitation still points at this uploaded image. */
 export async function isImageReferenced(url: string): Promise<boolean> {
   const { rows } = await getPool().query(

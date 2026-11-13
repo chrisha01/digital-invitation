@@ -232,9 +232,16 @@ infrastructure or commercial agreements rather than design work:
 4. **Uploads are half-moved.** With `S3_*` configured, images go to object storage and the document
    keeps a URL; without it the editor still inlines data URLs, and every invitation made before the
    change keeps the bytes it already has. Replaced images and the images of a deleted invitation are
-   removed once no invitation references them, and `npm run db:sweep-images` clears the objects left
-   by uploads that were never saved, but nothing migrates the old inline data URLs.
-5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
+   removed once no invitation references them, and a sweep clears the objects left by uploads that
+   were never saved — scheduled in-process (`SWEEP_INTERVAL_MINUTES`, guarded by an advisory lock),
+   from an external cron via `POST /api/jobs/sweep-images`, or by hand. Each run is logged to
+   `job_runs`. Nothing migrates the old inline data URLs.
+5. **Something has to run the scheduler.** `npm run scheduler` is a companion process that posts to
+   the job endpoint on an interval; starting `next start` alone does not sweep. A host that sleeps
+   or scales to zero pauses it, which is why the endpoint can also be driven by an external cron.
+   Overlapping runs are excluded by a transaction-scoped advisory lock and every run lands in
+   `job_runs`.
+6. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
    password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. The key is the
    address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of
    nginx is `2`), or failing that a browser id the server signs with its session secret — a forged

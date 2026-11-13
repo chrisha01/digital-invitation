@@ -1,4 +1,9 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
 
 /** Matches the limit the editor enforces before it even sends the file. */
@@ -124,7 +129,35 @@ export async function putImage(
 export async function deleteImage(url: string): Promise<void> {
   const key = objectKey(url);
   if (!key) return;
+  await deleteStoredKey(key);
+}
 
+export async function deleteStoredKey(key: string): Promise<void> {
   const { client, settings: current } = storage();
   await client.send(new DeleteObjectCommand({ Bucket: current.bucket, Key: key }));
+}
+
+/** Every object under the invitations prefix, for the orphan sweep. */
+export async function listStoredImages(): Promise<{ key: string; lastModified: Date }[]> {
+  const { client, settings: current } = storage();
+  const objects: { key: string; lastModified: Date }[] = [];
+
+  let token: string | undefined;
+  do {
+    const page = await client.send(
+      new ListObjectsV2Command({
+        Bucket: current.bucket,
+        Prefix: 'invitations/',
+        ContinuationToken: token,
+      }),
+    );
+    for (const entry of page.Contents ?? []) {
+      if (entry.Key) {
+        objects.push({ key: entry.Key, lastModified: entry.LastModified ?? new Date(0) });
+      }
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+
+  return objects;
 }

@@ -85,10 +85,28 @@ URLs under `S3_PUBLIC_BASE_URL` are ever deleted. With none of those settings th
 503 and the editor falls back to inlining images as data URLs, so a bare checkout still works.
 Invitations created before this change keep their data URLs.
 
-Images uploaded and never saved still leave an object behind. `npm run db:sweep-images` lists
-objects under `invitations/` that no invitation references; nothing is removed without `--delete`,
-and nothing modified in the last 24 hours is touched (`--older-than-hours=0` to change that). Run
-it on a schedule once the bucket is live.
+Images uploaded and never saved still leave an object behind. A sweep lists the objects under
+`invitations/` that no invitation references, removes them, and records each run — with the keys it
+deleted — in the `job_runs` table.
+
+```bash
+SWEEP_INTERVAL_MINUTES=1440   # how often the scheduler sweeps
+CRON_SECRET=…                 # required by the endpoint, the scheduler and the CLI
+```
+
+Three ways to run it, all using the same code:
+
+- **Companion process:** `npm run scheduler` sweeps immediately and then every
+  `SWEEP_INTERVAL_MINUTES`, logging each key it removes. Run it beside the app (systemd, PM2, a
+  second container). Overlapping runs are refused by a transaction-scoped advisory lock, because
+  this database is reached through a transaction pooler where session locks do not exclude.
+- **From a scheduler:** `POST /api/jobs/sweep-images` with `Authorization: Bearer $CRON_SECRET` and
+  `{"delete": true}` — for hosts that provide their own cron.
+- **By hand:** `npm run db:sweep-images`, which calls the endpoint on `APP_URL` (default
+  `http://127.0.0.1:3210`).
+
+Nothing is removed unless `--delete` (or `"delete": true`) is passed, and objects modified within
+the last 24 hours are always kept, so a sweep cannot race an upload being saved.
 
 ## How the card scales
 
