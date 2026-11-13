@@ -49,9 +49,11 @@ npm run db:migrate   # create or upgrade the tables
 npm run db:import    # one-off: copy .data/invitations.json into the database
 ```
 
-`db:import` is idempotent — it upserts by invitation id and checks its own row counts — so it is
-safe to run again. Writes go through a transaction that locks the row, so two requests editing the
-same invitation cannot lose each other's changes.
+`db:import` only **adds** invitations the database does not already have. An id that is already
+present is skipped and left exactly as it is, so re-running the import can never roll back edits
+made since — it is there to bring a fresh database up to date, not to sync backwards. Writes go
+through a transaction that locks the row, so two requests editing the same invitation cannot lose
+each other's changes.
 
 Accounts and the session secret still live in `.data/users.json` and `.data/session-secret`; moving
 them into Postgres is the next step. `GATHERLY_DATA_DIR` still points those files somewhere else.

@@ -26,23 +26,20 @@ if (!invitations.length) {
   process.exit(0);
 }
 
-const UPSERT = `
+// Insert only. An invitation the database already holds may have been edited
+// since the last import, and re-importing the old JSON must never undo that.
+const INSERT = `
   insert into invitations
     (id, owner_id, title, design_slug, starts_at, created_at, updated_at, collaborators, document)
   values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-  on conflict (id) do update set
-    owner_id = excluded.owner_id,
-    title = excluded.title,
-    design_slug = excluded.design_slug,
-    starts_at = excluded.starts_at,
-    created_at = excluded.created_at,
-    updated_at = excluded.updated_at,
-    collaborators = excluded.collaborators,
-    document = excluded.document
+  on conflict (id) do nothing
 `;
 
 const client = new Client({ connectionString });
 await client.connect();
+
+let inserted = 0;
+let skipped = 0;
 
 try {
   await client.query('begin');
@@ -50,7 +47,7 @@ try {
   for (const inv of invitations) {
     const now = new Date().toISOString();
     const starts = inv.event?.startsAt ? new Date(inv.event.startsAt) : null;
-    await client.query(UPSERT, [
+    const result = await client.query(INSERT, [
       inv.id,
       inv.ownerId ?? null,
       inv.title ?? '',
@@ -61,6 +58,8 @@ try {
       (inv.collaborators ?? []).map((entry) => String(entry).toLowerCase()),
       inv,
     ]);
+    if (result.rowCount) inserted += 1;
+    else skipped += 1;
   }
 
   await client.query('commit');
@@ -70,26 +69,20 @@ try {
   process.exit(1);
 }
 
-const expectedGuests = invitations.reduce((sum, inv) => sum + (inv.guests?.length ?? 0), 0);
-const expectedOwners = new Set(invitations.map((inv) => inv.ownerId).filter(Boolean)).size;
-
-const { rows } = await client.query(`
-  select count(*)::int as invitations,
-         coalesce(sum(jsonb_array_length(document->'guests')), 0)::int as guests,
-         count(distinct owner_id)::int as owners
-    from invitations
-`);
-const counts = rows[0];
+// Every id in the file should now exist, whether it was just added or was
+// already there and left untouched.
+const { rows } = await client.query(
+  `select count(*)::int as present from invitations where id = any($1::text[])`,
+  [invitations.map((inv) => inv.id)],
+);
+const present = rows[0].present;
 await client.end();
 
-console.log(`imported ${invitations.length} invitations from ${source}`);
-console.log(
-  `database now holds ${counts.invitations} invitations, ${counts.guests} guest rows, ${counts.owners} owners`,
-);
-console.log(
-  `expected ${invitations.length} invitations, ${expectedGuests} guest rows, ${expectedOwners} owners`,
-);
-if (counts.invitations !== invitations.length || counts.guests !== expectedGuests) {
-  console.error('Counts do not match what was imported.');
+console.log(`read ${invitations.length} invitations from ${source}`);
+console.log(`added ${inserted} new, left ${skipped} already present untouched`);
+console.log(`all ${present} of them are in the database`);
+
+if (present !== invitations.length) {
+  console.error('Some invitations from the file are missing from the database.');
   process.exit(1);
 }
