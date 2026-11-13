@@ -8,7 +8,8 @@
     "start": "next start -p 3210",
     "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
     "db:import": "node --env-file-if-exists=.env scripts/db-import.mjs",
-    "db:import-users": "node --env-file-if-exists=.env scripts/db-import-users.mjs"
+    "db:import-users": "node --env-file-if-exists=.env scripts/db-import-users.mjs",
+    "db:sweep-images": "node --env-file-if-exists=.env scripts/db-sweep-images.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",

@@ -1,7 +1,7 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
 
-/** Matches the limit the editor already enforced on inline uploads. */
+/** Matches the limit the editor enforces before it even sends the file. */
 export const MAX_IMAGE_BYTES = 3_500_000;
 
 const EXTENSIONS: Record<string, string> = {
@@ -12,90 +12,104 @@ const EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
 };
 
-export function isSupportedImage(type: string): boolean {
-  return type in EXTENSIONS;
-}
-
 /**
  * Reads the container from the bytes rather than the declared type: the browser
  * decides what goes in the multipart part, and nothing stops a client from
  * labelling an HTML file as image/png.
  */
 export function sniffImageType(bytes: Uint8Array): string | null {
-  const at = (offset: number, length: number) =>
-    bytes.length >= offset + length ? Array.from(bytes.subarray(offset, offset + length)) : [];
-  const matches = (offset: number, expected: number[]) => {
-    const actual = at(offset, expected.length);
-    return actual.length === expected.length && expected.every((value, index) => actual[index] === value);
-  };
-  const ascii = (offset: number, length: number) =>
+  const head = (offset: number, length: number) =>
     bytes.length >= offset + length
       ? Buffer.from(bytes.subarray(offset, offset + length)).toString('latin1')
       : '';
+  const startsWith = (expected: number[]) => expected.every((value, index) => bytes[index] === value);
 
-  if (matches(0, [0xff, 0xd8, 0xff])) return 'image/jpeg';
-  if (matches(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
-  if (ascii(0, 4) === 'GIF8') return 'image/gif';
-  if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') return 'image/webp';
-  if (ascii(4, 4) === 'ftyp' && (ascii(8, 4) === 'avif' || ascii(8, 4) === 'avis')) return 'image/avif';
+  if (startsWith([0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
+  if (head(0, 4) === 'GIF8') return 'image/gif';
+  if (head(0, 4) === 'RIFF' && head(8, 4) === 'WEBP') return 'image/webp';
+  if (head(4, 4) === 'ftyp' && (head(8, 4) === 'avif' || head(8, 4) === 'avis')) return 'image/avif';
   return null;
 }
 
-function config() {
+type Settings = {
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint?: string;
+  region: string;
+  publicBase: string;
+};
+
+/** Everything an upload needs, or null when the server has no bucket. */
+function settings(): Settings | null {
   const bucket = process.env.S3_BUCKET?.trim();
   const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
-  // R2 wants an endpoint; plain S3 does not.
-  const endpoint = process.env.S3_ENDPOINT?.trim() || undefined;
-  const region = process.env.S3_REGION?.trim() || (endpoint ? 'auto' : 'us-east-1');
   const publicBase = process.env.S3_PUBLIC_BASE_URL?.trim().replace(/\/+$/, '');
-  return { bucket, accessKeyId, secretAccessKey, endpoint, region, publicBase };
+  if (!bucket || !accessKeyId || !secretAccessKey || !publicBase) return null;
+
+  // R2 needs an endpoint and region=auto; plain S3 needs neither.
+  const endpoint = process.env.S3_ENDPOINT?.trim() || undefined;
+  return {
+    bucket,
+    accessKeyId,
+    secretAccessKey,
+    endpoint,
+    region: process.env.S3_REGION?.trim() || (endpoint ? 'auto' : 'us-east-1'),
+    publicBase,
+  };
 }
 
-/** True when every setting an upload needs is present. */
 export function storageConfigured(): boolean {
-  const { bucket, accessKeyId, secretAccessKey, publicBase } = config();
-  return Boolean(bucket && accessKeyId && secretAccessKey && publicBase);
+  return settings() !== null;
 }
 
-let client: S3Client | null = null;
+let cached: { client: S3Client; settings: Settings } | null = null;
 
-function s3(options: NonNullable<ReturnType<typeof config>>, endpointDefaults: boolean) {
-  if (!client) {
-    client = new S3Client({
-      region: options.region,
-      endpoint: options.endpoint,
-      // R2 and most S3-compatible services expect the bucket in the path.
-      forcePathStyle: endpointDefaults,
-      credentials: {
-        accessKeyId: options.accessKeyId!,
-        secretAccessKey: options.secretAccessKey!,
-      },
-    });
+function storage() {
+  if (!cached) {
+    const current = settings();
+    if (!current) throw new Error('Object storage is not configured.');
+    cached = {
+      settings: current,
+      client: new S3Client({
+        region: current.region,
+        endpoint: current.endpoint,
+        forcePathStyle: Boolean(current.endpoint),
+        credentials: {
+          accessKeyId: current.accessKeyId,
+          secretAccessKey: current.secretAccessKey,
+        },
+      }),
+    };
   }
-  return client;
+  return cached;
 }
 
-/**
- * Stores one image and returns the URL to keep in the invitation document.
- * The key is scoped by owner so objects can be traced back to an account.
- */
+/** Key behind a URL this app stored; null for data URLs and foreign links. */
+export function objectKey(url: string): string | null {
+  const current = settings();
+  if (!current || !url.startsWith(`${current.publicBase}/`)) return null;
+  const key = url.slice(current.publicBase.length + 1).split('?')[0];
+  return key ? decodeURIComponent(key) : null;
+}
+
+/** Stores one image and returns the URL to keep in the invitation document. */
 export async function putImage(
   ownerId: string,
   bytes: Uint8Array,
   contentType: string,
 ): Promise<string> {
-  const options = config();
-  if (!storageConfigured()) throw new Error('Object storage is not configured.');
-
   const extension = EXTENSIONS[contentType];
   if (!extension) throw new Error(`Unsupported image type ${contentType}.`);
 
+  const { client, settings: current } = storage();
   const key = `invitations/${ownerId}/${Date.now().toString(36)}-${randomBytes(6).toString('hex')}.${extension}`;
 
-  await s3(options, Boolean(options.endpoint)).send(
+  await client.send(
     new PutObjectCommand({
-      Bucket: options.bucket,
+      Bucket: current.bucket,
       Key: key,
       Body: bytes,
       ContentType: contentType,
@@ -103,39 +117,14 @@ export async function putImage(
     }),
   );
 
-  return `${options.publicBase}/${key}`;
+  return `${current.publicBase}/${key}`;
 }
 
-/** The three spots an invitation keeps an uploaded image. */
-export function imageUrls(invitation: {
-  card?: { photo?: string | null; portrait?: string | null };
-  backdrop?: { image?: string | null };
-} | null): string[] {
-  const candidates = [invitation?.card?.photo, invitation?.card?.portrait, invitation?.backdrop?.image];
-  return candidates.filter((url): url is string => typeof url === 'string' && url.length > 0);
-}
+/** Deletes one stored object; anything that is not ours is ignored. */
+export async function deleteImage(url: string): Promise<void> {
+  const key = objectKey(url);
+  if (!key) return;
 
-/** True only for objects this app stored; data URLs and foreign links are left alone. */
-export function isStoredImageUrl(url: string): boolean {
-  const { publicBase } = config();
-  return Boolean(publicBase && storageConfigured() && url.startsWith(`${publicBase}/`));
-}
-
-function keyFromUrl(url: string): string | null {
-  const { publicBase } = config();
-  if (!publicBase || !url.startsWith(`${publicBase}/`)) return null;
-  const key = url.slice(publicBase.length + 1).split('?')[0];
-  return key ? decodeURIComponent(key) : null;
-}
-
-/** Removes one stored object. Returns false when the URL is not ours. */
-export async function deleteImage(url: string): Promise<boolean> {
-  const options = config();
-  const key = keyFromUrl(url);
-  if (!key || !storageConfigured()) return false;
-
-  await s3(options, Boolean(options.endpoint)).send(
-    new DeleteObjectCommand({ Bucket: options.bucket, Key: key }),
-  );
-  return true;
+  const { client, settings: current } = storage();
+  await client.send(new DeleteObjectCommand({ Bucket: current.bucket, Key: key }));
 }

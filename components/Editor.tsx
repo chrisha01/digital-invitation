@@ -428,56 +428,25 @@ export default function Editor({ initial }: { initial: Invitation }) {
 
   const [uploading, setUploading] = useState<'photo' | 'portrait' | 'backdrop' | null>(null);
 
-  async function onPhoto(file: File | null) {
+  /** One upload at a time; the picker that started it shows the progress. */
+  async function pickImage(file: File | null, slot: 'photo' | 'portrait' | 'backdrop') {
     if (!file) return;
     if (file.size > 3_500_000) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
-    setUploading('photo');
+    setUploading(slot);
     try {
       const url = await uploadImage(file);
       set((draft) => {
-        draft.card.photo = url;
-      });
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  async function onPortrait(file: File | null) {
-    if (!file) return;
-    if (file.size > 3_500_000) {
-      window.alert('Please choose an image under 3.5 MB.');
-      return;
-    }
-    setUploading('portrait');
-    try {
-      const url = await uploadImage(file);
-      set((draft) => {
-        draft.card.portrait = url;
-        if (typeof draft.card.portraitX !== 'number') seatPortrait(draft);
-      });
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  async function onBackdropImage(file: File | null) {
-    if (!file) return;
-    if (file.size > 3_500_000) {
-      window.alert('Please choose an image under 3.5 MB.');
-      return;
-    }
-    setUploading('backdrop');
-    try {
-      const url = await uploadImage(file);
-      set((draft) => {
-        draft.backdrop.image = url;
+        if (slot === 'photo') {
+          draft.card.photo = url;
+        } else if (slot === 'portrait') {
+          draft.card.portrait = url;
+          if (typeof draft.card.portraitX !== 'number') seatPortrait(draft);
+        } else {
+          draft.backdrop.image = url;
+        }
       });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
@@ -638,7 +607,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       type="file"
                       accept="image/*"
                       disabled={uploading !== null}
-                      onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
+                      onChange={(e) => void pickImage(e.target.files?.[0] ?? null, 'photo')}
                     />
                     <button
                       className="btn btn-ghost btn-small"
@@ -657,7 +626,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                     type="file"
                     accept="image/*"
                     disabled={uploading !== null}
-                    onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
+                    onChange={(e) => void pickImage(e.target.files?.[0] ?? null, 'photo')}
                   />
                 )}
                 {uploading === 'photo' ? (
@@ -703,7 +672,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       accept="image/*"
                       disabled={uploading !== null}
                       onChange={(e) => {
-                        void onPortrait(e.target.files?.[0] ?? null);
+                        void pickImage(e.target.files?.[0] ?? null, 'portrait');
                         e.target.value = '';
                       }}
                     />
@@ -1284,7 +1253,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       accept="image/*"
                       disabled={uploading !== null}
                       onChange={(e) => {
-                        void onBackdropImage(e.target.files?.[0] ?? null);
+                        void pickImage(e.target.files?.[0] ?? null, 'backdrop');
                         e.target.value = '';
                       }}
                     />

@@ -85,6 +85,11 @@ URLs under `S3_PUBLIC_BASE_URL` are ever deleted. With none of those settings th
 503 and the editor falls back to inlining images as data URLs, so a bare checkout still works.
 Invitations created before this change keep their data URLs.
 
+Images uploaded and never saved still leave an object behind. `npm run db:sweep-images` lists
+objects under `invitations/` that no invitation references; nothing is removed without `--delete`,
+and nothing modified in the last 24 hours is touched (`--older-than-hours=0` to change that). Run
+it on a schedule once the bucket is live.
+
 ## How the card scales
 
 Text sizes are stored in percent of card width and rendered with CSS container query units. The same

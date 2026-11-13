@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/auth';
 import { rateGate } from '@/lib/rate-limit';
-import {
-  MAX_IMAGE_BYTES,
-  isSupportedImage,
-  putImage,
-  sniffImageType,
-  storageConfigured,
-} from '@/lib/storage';
+import { MAX_IMAGE_BYTES, putImage, sniffImageType, storageConfigured } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,15 +38,16 @@ export async function POST(request: Request) {
   if (file.size > MAX_IMAGE_BYTES) {
     return gate.applyCookie(
       NextResponse.json(
-        { error: `Please choose an image under ${Math.floor(MAX_IMAGE_BYTES / 100_000) / 10} MB.` },
+        { error: `Please choose an image under ${MAX_IMAGE_BYTES / 1_000_000} MB.` },
         { status: 413 },
       ),
     );
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+  // sniffImageType only ever returns a type this app can store.
   const contentType = sniffImageType(bytes);
-  if (!contentType || !isSupportedImage(contentType)) {
+  if (!contentType) {
     return gate.applyCookie(
       NextResponse.json({ error: 'Use a JPEG, PNG, WebP, GIF or AVIF image.' }, { status: 400 }),
     );

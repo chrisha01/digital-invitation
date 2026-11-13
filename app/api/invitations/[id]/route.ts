@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { canManage, isOwner } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
-import { discardImages, imageUrls, replacedImages } from '@/lib/images';
+import { discardImages, imageUrls } from '@/lib/images';
 import { deleteInvitation, getInvitation, putInvitation } from '@/lib/store';
 import type { Invitation } from '@/lib/types';
 
@@ -50,7 +50,8 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
   const before = imageUrls(existing);
   await putInvitation(next);
   // A replaced photo leaves an object behind; remove it once the save is stored.
-  await discardImages(replacedImages(before, imageUrls(next)));
+  const after = imageUrls(next);
+  await discardImages(before.filter((url) => !after.includes(url)));
   return NextResponse.json({ invitation: next });
 }
 
