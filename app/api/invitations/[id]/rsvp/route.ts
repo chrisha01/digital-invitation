@@ -6,8 +6,13 @@ import type { Guest, RsvpStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-/** This endpoint is public — guests reply without signing in. */
-const RSVPS_PER_WINDOW = 30;
+/**
+ * This endpoint is public — guests reply without signing in — so the cap has to
+ * stop a script while still leaving a whole venue's shared wifi comfortable.
+ * Browsers are keyed on their own id, so 120 replies per ten minutes is far
+ * beyond any single guest and still only a trickle for a script.
+ */
+const RSVPS_PER_WINDOW = 120;
 const WINDOW_MS = 10 * 60 * 1000;
 
 class RsvpError extends Error {

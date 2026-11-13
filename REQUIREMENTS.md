@@ -225,9 +225,12 @@ infrastructure or commercial agreements rather than design work:
    links are the reliable path; production needs signed, single-purpose tokens.
 4. **Uploaded images are stored inline as data URLs**, which bloats the JSON store. Move to R2 (or
    any object store) with size/type validation server-side for production.
-5. **Rate limits are per process.** Sign-in, sign-up, password reset and the public RSVP endpoint
-   are throttled in `lib/rate-limit.ts`, but the counters live in memory and reset on restart.
-   Move them to a shared store once the app runs on more than one process.
+5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
+   password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. Without a
+   proxy the key is an opaque per-browser cookie set by `middleware.ts`; `X-Forwarded-For` is only
+   used when `TRUST_PROXY=1` says a real proxy appends it. A caller who clears cookies falls into a
+   shared bucket, so limits still bite, just less precisely. Move the counters to a shared store
+   once the app runs on more than one process.
 6. Deadline and capacity checks use the server clock; there is no timezone per event yet.
 
 ---

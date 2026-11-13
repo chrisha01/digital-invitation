@@ -56,3 +56,10 @@ object storage, and move the in-memory rate-limit counters to a shared store.
 
 Password resets are emailed when a mail provider is configured (`RESEND_API_KEY` + `EMAIL_FROM`).
 With no provider the link is only returned in development — production never hands it back.
+
+## Behind a proxy
+
+Rate limits are keyed on a per-browser id by default, never on `X-Forwarded-For`, because a client
+can write that header itself. If the app runs behind nginx, Cloudflare or a load balancer, set
+`TRUST_PROXY=1` so limits use the caller address the proxy appends. Leave it unset when the app is
+exposed directly.

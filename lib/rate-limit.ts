@@ -12,7 +12,22 @@ const buckets = new Map<string, Bucket>();
 /** Well above the number of live keys any real traffic creates. */
 const MAX_BUCKETS = 5000;
 
+/** The browser id cookie, also stamped onto the request by `middleware.ts`. */
+export const CLIENT_COOKIE = 'gatherly_client';
+/** Request header the middleware sets; it overwrites anything the client sent. */
+export const CLIENT_HEADER = 'x-gatherly-client';
+
 export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number };
+
+/**
+ * Off unless the app really sits behind a proxy that appends the caller address.
+ * Without a proxy, `X-Forwarded-For` is written by the client and cannot be
+ * trusted for anything.
+ */
+function trustsProxy(): boolean {
+  const value = (process.env.TRUST_PROXY ?? '').trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes';
+}
 
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
@@ -46,14 +61,24 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
 }
 
 /**
- * Best-effort caller identity. Behind a proxy the first X-Forwarded-For entry is
- * the original client; everything else falls back to a shared bucket.
+ * Behind a trusted proxy the rightmost `X-Forwarded-For` entry is the address
+ * our proxy appended (earlier entries are client-supplied and spoofable).
+ * Everywhere else the key is the per-browser id the middleware stamps onto the
+ * request, or a shared bucket when the browser sent no cookie yet.
  */
 export function callerKey(request: Request, scope: string): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const address =
-    forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip')?.trim() || 'local';
-  return `${scope}:${address}`;
+  if (trustsProxy()) {
+    const forwarded = request.headers.get('x-forwarded-for');
+    const hops = (forwarded ?? '')
+      .split(',')
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    const address = hops.at(-1) ?? request.headers.get('x-real-ip')?.trim() ?? '';
+    if (address) return `${scope}:ip:${address}`;
+  }
+
+  const client = request.headers.get(CLIENT_HEADER)?.trim();
+  return `${scope}:client:${client || 'anonymous'}`;
 }
 
 /** The 429 every limited route returns, with a Retry-After the browser honours. */
