@@ -230,9 +230,10 @@ infrastructure or commercial agreements rather than design work:
    address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of
    nginx is `2`), or failing that a browser id the server signs with its session secret — a forged
    cookie fails the signature check, and an over-limit request is never given a new id. Callers with
-   no id share one bucket with extra headroom, so dropping cookies costs them the shared allowance
-   rather than buying a fresh one. Move the counters to a shared store once the app runs on more
-   than one process.
+   no id share one pool on a one-minute window, so an attacker can starve it only briefly rather
+   than for the route's whole window; a newly issued id serves its first minute on a five-request
+   probation, so farming ids cannot buy a short window's worth of bypass. Move the counters to a
+   shared store once the app runs on more than one process.
 6. Deadline and capacity checks use the server clock; there is no timezone per event yet.
 
 ---

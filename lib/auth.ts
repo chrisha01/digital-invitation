@@ -3,10 +3,10 @@ import path from 'node:path';
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { dataDir } from './paths';
 
-const DIR = path.join(process.cwd(), '.data');
-const USERS_FILE = path.join(DIR, 'users.json');
-const SECRET_FILE = path.join(DIR, 'session-secret');
+const usersFile = () => path.join(dataDir(), 'users.json');
+const secretFile = () => path.join(dataDir(), 'session-secret');
 
 export const SESSION_COOKIE = 'envelope_session';
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
@@ -44,7 +44,7 @@ function queued<T>(fn: () => Promise<T>): Promise<T> {
 
 async function loadUsers(): Promise<UsersDB> {
   try {
-    const raw = await fs.readFile(USERS_FILE, 'utf8');
+    const raw = await fs.readFile(usersFile(), 'utf8');
     const parsed = JSON.parse(raw) as UsersDB;
     if (!parsed || !Array.isArray(parsed.users)) return { users: [] };
     return parsed;
@@ -54,10 +54,11 @@ async function loadUsers(): Promise<UsersDB> {
 }
 
 async function saveUsers(db: UsersDB): Promise<void> {
-  await fs.mkdir(DIR, { recursive: true });
-  const tmp = `${USERS_FILE}.${process.pid}.${Date.now()}.tmp`;
+  const file = usersFile();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
-  await fs.rename(tmp, USERS_FILE);
+  await fs.rename(tmp, file);
 }
 
 const digest = (password: string, salt: string) => scryptSync(password, salt, 64).toString('hex');
@@ -192,14 +193,15 @@ export function sessionSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
   cachedSecret = (async () => {
     try {
-      const existing = (await fs.readFile(SECRET_FILE, 'utf8')).trim();
+      const existing = (await fs.readFile(secretFile(), 'utf8')).trim();
       if (existing) return existing;
     } catch {
       // Fall through and create one.
     }
     const value = randomBytes(32).toString('hex');
-    await fs.mkdir(DIR, { recursive: true });
-    await fs.writeFile(SECRET_FILE, value, 'utf8');
+    const file = secretFile();
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, value, 'utf8');
     return value;
   })();
   return cachedSecret;

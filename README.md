@@ -43,6 +43,9 @@ Invitations and replies live in `.data/invitations.json` (git-ignored). Delete t
 fresh — the app recreates it on the next write. Accounts and the session secret live beside it in
 `.data/users.json` and `.data/session-secret`.
 
+Point `GATHERLY_DATA_DIR` at another directory to run against a throwaway store instead — handy for
+trying something (a burst of test replies, say) without touching the real guest list.
+
 ## How the card scales
 
 Text sizes are stored in percent of card width and rendered with CSS container query units. The same
@@ -74,3 +77,8 @@ the address it saw, so the guess is counted in from the right:
 
 With `2`, a chain of `client, cdn-edge` resolves to the guest rather than the CDN edge. Make sure the
 outermost proxy overwrites, rather than passes through, a client-supplied `X-Forwarded-For`.
+
+Callers with no id yet share one pool. That pool runs on a **one-minute** window, so a burst or an
+attack can only ever cost a guest a short wait, never the route's full ten or fifteen minutes. A
+freshly issued id is on probation for its first minute (five requests), which is what stops a script
+from farming ids to dodge that short window.

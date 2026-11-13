@@ -21,11 +21,19 @@ const CLIENT_MAX_AGE = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Callers without a recognised id share this bucket. It is given more headroom
- * than a named caller so a roomful of guests arriving mid-flow still get through,
- * while a script that never keeps a cookie still runs out.
+ * Callers with no id share one pool. That pool runs on a short window of its own
+ * so an attacker cannot leave real guests blocked until the route's ten- or
+ * fifteen-minute window expires: it drains and refills every minute.
  */
-const ANONYMOUS_HEADROOM = 3;
+const ANONYMOUS_WINDOW_MS = 60 * 1000;
+
+/**
+ * A freshly issued id is on probation, because minting ids would otherwise be
+ * the cheapest way round a short anonymous window. A guest replying, editing a
+ * reply and sending a correction fits well inside this.
+ */
+const PROBATION_MS = 60 * 1000;
+const PROBATION_REQUESTS = 5;
 
 export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number };
 
@@ -68,8 +76,8 @@ export function tooManyRequests(retryAfterSeconds: number) {
   };
 }
 
-function sign(id: string, secret: string): string {
-  return createHmac('sha256', secret).update(id).digest('base64url');
+function sign(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
 function cookieValue(request: Request, name: string): string | null {
@@ -82,23 +90,33 @@ function cookieValue(request: Request, name: string): string | null {
   return null;
 }
 
+type KnownClient = { id: string; ageMs: number };
+
 /** The id this browser was given, and only if the signature proves we issued it. */
-async function verifiedClientId(request: Request): Promise<string | null> {
+async function verifiedClientId(request: Request): Promise<KnownClient | null> {
   const raw = cookieValue(request, CLIENT_COOKIE);
   if (!raw) return null;
 
-  const [id, signature] = raw.split('.');
-  if (!id || !signature || !UUID.test(id)) return null;
+  const [id, issuedAt, signature] = raw.split('.');
+  if (!id || !issuedAt || !signature || !UUID.test(id)) return null;
 
-  const expected = Buffer.from(sign(id, await sessionSecret()));
+  const issued = Number(issuedAt);
+  if (!Number.isFinite(issued)) return null;
+
+  const ageMs = Date.now() - issued;
+  // A future timestamp is as impossible as a bad signature: treat it as forged.
+  if (ageMs < 0 || ageMs > CLIENT_MAX_AGE * 1000) return null;
+
+  const expected = Buffer.from(sign(`${id}.${issuedAt}`, await sessionSecret()));
   const given = Buffer.from(signature);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
-  return id;
+  return { id, ageMs };
 }
 
 async function newClientCookie(): Promise<string> {
   const id = randomUUID();
-  return `${id}.${sign(id, await sessionSecret())}`;
+  const issuedAt = String(Date.now());
+  return `${id}.${issuedAt}.${sign(`${id}.${issuedAt}`, await sessionSecret())}`;
 }
 
 /**
@@ -135,6 +153,7 @@ function addressFromProxy(request: Request, hops: number): string | null {
   const real = request.headers.get('x-real-ip')?.trim();
   return isAddress(real) ? real : null;
 }
+
 export type Gate =
   | { ok: true; applyCookie: (response: NextResponse) => NextResponse }
   | { ok: false; response: NextResponse };
@@ -143,10 +162,10 @@ export type Gate =
  * Counts this request against its caller's allowance.
  *
  * A caller is named by the address a trusted proxy reports, or failing that by
- * an id this server signed. A forged cookie fails the signature check and is
- * treated as a stranger, so inventing one buys nothing — and a request that is
- * over the limit is never handed a new id, so reloading to mint one does not
- * work either.
+ * an id this server signed. A forged cookie fails the signature check and lands
+ * in the shared pool, where the window is short — so the worst an attacker can
+ * do is starve that pool for a minute, not for the route's whole window, and a
+ * guest who keeps trying is served as soon as it refills.
  */
 export async function rateGate(
   request: Request,
@@ -156,12 +175,24 @@ export async function rateGate(
 ): Promise<Gate> {
   const hops = trustHops();
   const address = hops ? addressFromProxy(request, hops) : null;
-  const knownId = address ? null : await verifiedClientId(request);
+  const known = address ? null : await verifiedClientId(request);
 
-  const anonymous = !address && !knownId;
-  const key = `${scope}:${address ? `ip:${address}` : `client:${knownId ?? 'anonymous'}`}`;
-  const result = rateLimit(key, anonymous ? limit * ANONYMOUS_HEADROOM : limit, windowMs);
+  let key: string;
+  let allowance = limit;
+  let window = windowMs;
 
+  if (address) {
+    key = `${scope}:ip:${address}`;
+  } else if (known) {
+    key = `${scope}:client:${known.id}`;
+    // New ids prove themselves on a small allowance before getting the full one.
+    if (known.ageMs < PROBATION_MS) allowance = Math.min(limit, PROBATION_REQUESTS);
+  } else {
+    key = `${scope}:pool`;
+    window = Math.min(windowMs, ANONYMOUS_WINDOW_MS);
+  }
+
+  const result = rateLimit(key, allowance, window);
   if (!result.ok) {
     return {
       ok: false,
@@ -172,9 +203,9 @@ export async function rateGate(
     };
   }
 
-  // Only a caller that got through earns an id, so the shared bucket cannot be
+  // Only a caller that got through earns an id, so a refused request cannot be
   // used as a machine for minting fresh allowances.
-  const issued = anonymous ? await newClientCookie() : null;
+  const issued = !address && !known ? await newClientCookie() : null;
 
   return {
     ok: true,

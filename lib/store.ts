@@ -1,9 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { dataDir } from './paths';
 import type { Invitation, InvitationSummary } from './types';
 
-const DIR = path.join(process.cwd(), '.data');
-const FILE = path.join(DIR, 'invitations.json');
+const storeFile = () => path.join(dataDir(), 'invitations.json');
 
 type DB = { invitations: Record<string, Invitation> };
 
@@ -11,14 +11,15 @@ let writeChain: Promise<unknown> = Promise.resolve();
 
 /** Moves an unreadable store aside so the next write cannot destroy it. */
 async function quarantine(): Promise<void> {
+  const file = storeFile();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  await fs.rename(FILE, `${FILE}.unreadable-${stamp}`).catch(() => undefined);
+  await fs.rename(file, `${file}.unreadable-${stamp}`).catch(() => undefined);
 }
 
 async function load(): Promise<DB> {
   let raw: string;
   try {
-    raw = await fs.readFile(FILE, 'utf8');
+    raw = await fs.readFile(storeFile(), 'utf8');
   } catch (error) {
     // A missing file is a first run; anything else means the store cannot be read.
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') await quarantine();
@@ -45,10 +46,11 @@ async function load(): Promise<DB> {
 }
 
 async function persist(db: DB): Promise<void> {
-  await fs.mkdir(DIR, { recursive: true });
-  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`;
+  const file = storeFile();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
-  await fs.rename(tmp, FILE);
+  await fs.rename(tmp, file);
 }
 
 /** Serialises read-modify-write cycles so concurrent requests cannot clobber each other. */
