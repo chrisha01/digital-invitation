@@ -7,7 +7,7 @@ import {
   sessionCookieOptions,
   validateSignup,
 } from '@/lib/auth';
-import { callerKey, rateLimit, tooManyRequests } from '@/lib/rate-limit';
+import { rateGate } from '@/lib/rate-limit';
 import { claimOrphanInvitations } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -16,24 +16,26 @@ export const dynamic = 'force-dynamic';
 const SIGNUPS_PER_HOUR = 10;
 
 export async function POST(request: Request) {
-  const limit = rateLimit(callerKey(request, 'signup'), SIGNUPS_PER_HOUR, 60 * 60 * 1000);
-  if (!limit.ok) {
-    return NextResponse.json(tooManyRequests(limit.retryAfterSeconds), {
-      status: 429,
-      headers: { 'retry-after': String(limit.retryAfterSeconds) },
-    });
-  }
+  const gate = await rateGate(request, 'signup', SIGNUPS_PER_HOUR, 60 * 60 * 1000);
+  if (!gate.ok) return gate.response;
 
   const body = (await request.json().catch(() => null)) as
     | { name?: string; email?: string; password?: string }
     | null;
 
   const checked = validateSignup(body ?? {});
-  if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
+  if ('error' in checked) {
+    return gate.applyCookie(NextResponse.json({ error: checked.error }, { status: 400 }));
+  }
 
   const user = await createUser(checked.name, checked.email, checked.password);
   if (!user) {
-    return NextResponse.json({ error: 'That email already has an account. Sign in instead.' }, { status: 409 });
+    return gate.applyCookie(
+      NextResponse.json(
+        { error: 'That email already has an account. Sign in instead.' },
+        { status: 409 },
+      ),
+    );
   }
 
   // Invitations made before accounts existed belong to the person who sets up
@@ -46,5 +48,5 @@ export async function POST(request: Request) {
     await issueSession(user.id, user.sessionVersion),
     sessionCookieOptions(),
   );
-  return response;
+  return gate.applyCookie(response);
 }

@@ -226,11 +226,13 @@ infrastructure or commercial agreements rather than design work:
 4. **Uploaded images are stored inline as data URLs**, which bloats the JSON store. Move to R2 (or
    any object store) with size/type validation server-side for production.
 5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
-   password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. Without a
-   proxy the key is an opaque per-browser cookie set by `middleware.ts`; `X-Forwarded-For` is only
-   used when `TRUST_PROXY=1` says a real proxy appends it. A caller who clears cookies falls into a
-   shared bucket, so limits still bite, just less precisely. Move the counters to a shared store
-   once the app runs on more than one process.
+   password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. The key is the
+   address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of
+   nginx is `2`), or failing that a browser id the server signs with its session secret — a forged
+   cookie fails the signature check, and an over-limit request is never given a new id. Callers with
+   no id share one bucket with extra headroom, so dropping cookies costs them the shared allowance
+   rather than buying a fresh one. Move the counters to a shared store once the app runs on more
+   than one process.
 6. Deadline and capacity checks use the server clock; there is no timezone per event yet.
 
 ---

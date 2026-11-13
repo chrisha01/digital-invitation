@@ -188,7 +188,7 @@ export async function resetPassword(token: string, password: string): Promise<Se
 
 let cachedSecret: Promise<string> | null = null;
 
-function sessionSecret(): Promise<string> {
+export function sessionSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
   cachedSecret = (async () => {
     try {

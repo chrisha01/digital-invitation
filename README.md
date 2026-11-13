@@ -59,7 +59,18 @@ With no provider the link is only returned in development — production never h
 
 ## Behind a proxy
 
-Rate limits are keyed on a per-browser id by default, never on `X-Forwarded-For`, because a client
-can write that header itself. If the app runs behind nginx, Cloudflare or a load balancer, set
-`TRUST_PROXY=1` so limits use the caller address the proxy appends. Leave it unset when the app is
-exposed directly.
+Rate limits never trust `X-Forwarded-For` on its own: a client writes that header itself. By default
+the key is a browser id this server signs with its session secret, handed out by the limited
+endpoints, so an invented cookie is ignored.
+
+Behind a proxy, set `TRUST_PROXY` to **the number of hops in front of the app** — each one appends
+the address it saw, so the guess is counted in from the right:
+
+| Setup | `TRUST_PROXY` |
+| --- | --- |
+| App exposed directly | unset |
+| nginx / a load balancer in front | `1` |
+| Cloudflare (or any CDN) in front of nginx | `2` |
+
+With `2`, a chain of `client, cdn-edge` resolves to the guest rather than the CDN edge. Make sure the
+outermost proxy overwrites, rather than passes through, a client-supplied `X-Forwarded-For`.

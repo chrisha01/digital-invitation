@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { newId } from '@/lib/defaults';
-import { callerKey, rateLimit, tooManyRequests } from '@/lib/rate-limit';
+import { rateGate } from '@/lib/rate-limit';
 import { mutateInvitation } from '@/lib/store';
 import type { Guest, RsvpStatus } from '@/lib/types';
 
@@ -53,13 +53,8 @@ const partySize = (guest: Guest) =>
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  const limit = rateLimit(callerKey(request, `rsvp:${id}`), RSVPS_PER_WINDOW, WINDOW_MS);
-  if (!limit.ok) {
-    return NextResponse.json(tooManyRequests(limit.retryAfterSeconds), {
-      status: 429,
-      headers: { 'retry-after': String(limit.retryAfterSeconds) },
-    });
-  }
+  const gate = await rateGate(request, `rsvp:${id}`, RSVPS_PER_WINDOW, WINDOW_MS);
+  if (!gate.ok) return gate.response;
 
   const body = (await request.json().catch(() => null)) as Body | null;
 
@@ -217,11 +212,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!updated) return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
 
     const saved = updated.guests.find((g) => g.id === savedGuestId) ?? null;
-    return NextResponse.json({ guest: saved });
+    return gate.applyCookie(NextResponse.json({ guest: saved }));
   } catch (error) {
     if (error instanceof RsvpError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return gate.applyCookie(
+        NextResponse.json({ error: error.message }, { status: error.status }),
+      );
     }
-    return NextResponse.json({ error: 'Could not save your reply.' }, { status: 500 });
+    return gate.applyCookie(
+      NextResponse.json({ error: 'Could not save your reply.' }, { status: 500 }),
+    );
   }
 }
