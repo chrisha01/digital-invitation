@@ -229,9 +229,10 @@ infrastructure or commercial agreements rather than design work:
    resetting the password or shortening `SESSION_MAX_AGE`.
 3. **Guest identity is name/email based**, so a reply can overwrite a same-named guest. Personal
    links are the reliable path; production needs signed, single-purpose tokens.
-4. **Uploaded images are stored inline as data URLs**, inside each invitation document. One portrait
-   can outweigh every other row combined, so move to R2 (or any object store) with size/type
-   validation server-side before taking real uploads.
+4. **Uploads are half-moved.** With `S3_*` configured, images go to object storage and the document
+   keeps a URL; without it the editor still inlines data URLs, and every invitation made before the
+   change keeps the bytes it already has. Nothing migrates those, and nothing deletes an object
+   when a photo is replaced or an invitation removed — add a sweep before taking real uploads.
 5. **Rate limits are per process, and callers are identified per browser.** Sign-in, sign-up,
    password reset and the public RSVP endpoint are throttled in `lib/rate-limit.ts`. The key is the
    address reported by a trusted proxy (`TRUST_PROXY` = the number of hops, so a CDN in front of

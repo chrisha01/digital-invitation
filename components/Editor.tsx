@@ -8,6 +8,7 @@ import EnvelopeCard from './EnvelopeCard';
 import { DRIFTS } from './CardDrift';
 import { normalizeHex } from '@/lib/color';
 import { backdropStyle } from '@/lib/backdrop';
+import { uploadImage } from '@/lib/upload-image';
 import { DESIGNS, defaultBackdrop, defaultCard, defaultEnvelope, getDesign, resolveEnvelope } from '@/lib/designs';
 import { newId } from '@/lib/defaults';
 import { ENVELOPE_ANIMATIONS, envelopeAnimation } from '@/lib/envelope-animations';
@@ -425,37 +426,53 @@ export default function Editor({ initial }: { initial: Invitation }) {
     });
   }
 
-  function onPhoto(file: File | null) {
+  async function onPhoto(file: File | null) {
     if (!file) return;
     if (file.size > 3_500_000) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
+    try {
+      const url = await uploadImage(file);
       set((draft) => {
-        draft.card.photo = result;
+        draft.card.photo = url;
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    }
   }
 
-  function onPortrait(file: File | null) {
+  async function onPortrait(file: File | null) {
     if (!file) return;
     if (file.size > 3_500_000) {
       window.alert('Please choose an image under 3.5 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
+    try {
+      const url = await uploadImage(file);
       set((draft) => {
-        draft.card.portrait = result;
+        draft.card.portrait = url;
         if (typeof draft.card.portraitX !== 'number') seatPortrait(draft);
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    }
+  }
+
+  async function onBackdropImage(file: File | null) {
+    if (!file) return;
+    if (file.size > 3_500_000) {
+      window.alert('Please choose an image under 3.5 MB.');
+      return;
+    }
+    try {
+      const url = await uploadImage(file);
+      set((draft) => {
+        draft.backdrop.image = url;
+      });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'That image could not be uploaded.');
+    }
   }
 
   const driftChoice: DriftId | 'none' =
@@ -1241,20 +1258,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (file.size > 3_500_000) {
-                          window.alert('Please choose an image under 3.5 MB.');
-                          return;
-                        }
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const result = String(reader.result);
-                          set((draft) => {
-                            draft.backdrop.image = result;
-                          });
-                        };
-                        reader.readAsDataURL(file);
+                        void onBackdropImage(e.target.files?.[0] ?? null);
                         e.target.value = '';
                       }}
                     />

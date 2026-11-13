@@ -63,6 +63,26 @@ each other's changes.
 The `.data/` files are now read by those two import scripts and nothing else — the app itself never
 touches them. `GATHERLY_DATA_DIR` still points the imports somewhere else.
 
+### Images
+
+Uploads go to S3-compatible object storage through `POST /api/uploads`, and the invitation keeps
+the returned URL instead of the image bytes. Any S3 API works; these are the R2 settings, and for
+AWS S3 you leave the endpoint and region overrides out:
+
+```bash
+S3_BUCKET=gatherly
+S3_ACCESS_KEY_ID=…
+S3_SECRET_ACCESS_KEY=…
+S3_PUBLIC_BASE_URL=https://cdn.example.com              # how the bucket is served
+S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com  # R2 only
+S3_REGION=auto                                          # R2 only
+```
+
+Uploads are signed-in only, capped at 3.5 MB, rate limited, and the bytes are sniffed rather than
+trusting the declared type; keys are scoped `invitations/<owner>/<random>.<ext>`. With none of
+those settings the endpoint answers 503 and the editor falls back to inlining images as data URLs,
+so a bare checkout still works. Invitations created before this change keep their data URLs.
+
 ## How the card scales
 
 Text sizes are stored in percent of card width and rendered with CSS container query units. The same
@@ -71,8 +91,9 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 
 ## Before publishing
 
-Read §7–§9 of `REQUIREMENTS.md`. At minimum: move uploads to object storage, move the in-memory
-rate-limit counters to a shared store, and run `npm run db:migrate` as part of every deploy.
+Read §7–§9 of `REQUIREMENTS.md`. At minimum: point uploads at a real bucket and migrate the images
+still inlined as data URLs, move the in-memory rate-limit counters to a shared store, and run
+`npm run db:migrate` as part of every deploy.
 
 Password resets are emailed when a mail provider is configured (`RESEND_API_KEY` + `EMAIL_FROM`).
 With no provider the link is only returned in development — production never hands it back.
