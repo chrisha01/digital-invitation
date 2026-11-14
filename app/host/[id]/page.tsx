@@ -11,9 +11,10 @@ import { getInvitation } from '@/lib/store';
 export const dynamic = 'force-dynamic';
 
 export default async function HostPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
   const { id } = await params;
-  const stored = await getInvitation(id);
+  // The session check and the invitation fetch do not depend on each other, so
+  // they run together instead of one round trip after the other.
+  const [user, stored] = await Promise.all([requireUser(), getInvitation(id)]);
   if (!stored || !canManage(stored, user)) notFound();
 
   // There is no scheduler in this app, so reminders that came due are sent when

@@ -18,8 +18,11 @@ export default async function HomePage({
 }) {
   const { category, page: pageParam, events } = await searchParams;
   const user = await currentUser();
-  const saved = user ? await listInvitations(user.id) : [];
-  const shared = user ? await listSharedInvitations(user.email) : [];
+  // Both lists are independent; fetching them together saves a full database
+  // round trip on every visit to the home page.
+  const [saved, shared] = user
+    ? await Promise.all([listInvitations(user.id), listSharedInvitations(user.email)])
+    : [[], []];
   // The hero still life is the product's own artwork, so it can never go stale.
   // Held still: drifting confetti behind the headline reads as noise.
   const hero = buildInvitation('gilded-arch');
