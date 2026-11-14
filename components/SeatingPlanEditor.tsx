@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCopy } from './useCopy';
+import CopyFallback from './CopyFallback';
 import BrandMark from './BrandMark';
 import {
   autoSeat,
@@ -95,6 +97,7 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   const [note, setNote] = useState<string | null>(null);
   const [seatMode, setSeatMode] = useState<SeatMode>('balanced');
   const [copied, setCopied] = useState(false);
+  const { copy: clipboardCopy, outcome: copyOutcome, clear: clearCopy } = useCopy();
   const floorRef = useRef<HTMLDivElement>(null);
   const moveRef = useRef<{
     kind: 'table' | 'item';
@@ -310,14 +313,13 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
     });
     const venue = items.length ? [`Room: ${items.map((item) => item.label).join(', ')}`] : [];
     const spare = unseated.length ? [`Unseated — ${unseated.map((guest) => guest.name).join(', ')}`] : [];
-    try {
-      await navigator.clipboard.writeText(
-        `${inv.event.title}\n\n${[...tables, ...venue, ...spare].join('\n\n')}`,
-      );
+    clearCopy();
+    const result = await clipboardCopy(
+      `${inv.event.title}\n\n${[...tables, ...venue, ...spare].join('\n\n')}`,
+    );
+    if (result?.outcome === 'copied') {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setStatus('error');
     }
   }
 
@@ -397,9 +399,20 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
               >
                 Seat everyone
               </button>
-              <button className="btn btn-ghost btn-small" onClick={copyPlan} disabled={!plan.tables.length}>
+                            <button
+                className="btn btn-ghost btn-small"
+                onClick={copyPlan}
+                disabled={!plan.tables.length}
+              >
                 {copied ? 'Copied' : 'Copy plan'}
               </button>
+              {copyOutcome && copyOutcome.outcome === 'copied' ? (
+                <span className="muted small">Copied</span>
+              ) : null}
+              {copyOutcome &&
+              copyOutcome.outcome === 'failed' ? (
+                <CopyFallback outcome={copyOutcome} />
+              ) : null}
             </div>
           </div>
 

@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useCopy } from './useCopy';
+import CopyFallback from './CopyFallback';
 import BrandMark from './BrandMark';
 import DeleteInvitationButton from './DeleteInvitationButton';
 import { REMINDER_AUDIENCES, reminderRecipients } from '@/lib/reminder-audience';
@@ -68,6 +70,7 @@ export default function HostDashboard({
   const [tag, setTag] = useState('Friends');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const { copy: clipboardCopy, outcome: copyOutcome, clear: clearCopy } = useCopy();
   const [error, setError] = useState<string | null>(null);
   const [textBody, setTextBody] = useState('');
   const [textAudience, setTextAudience] = useState<TextAudience>('attending');
@@ -296,12 +299,11 @@ export default function HostDashboard({
   }
 
   async function copy(text: string, key: string) {
-    try {
-      await navigator.clipboard.writeText(text);
+    clearCopy();
+    const result = await clipboardCopy(text);
+    if (result?.outcome === 'copied') {
       setCopied(key);
       window.setTimeout(() => setCopied(null), 1600);
-    } catch {
-      setError('Copying needs clipboard permission in this browser.');
     }
   }
 
@@ -524,13 +526,25 @@ export default function HostDashboard({
             </p>
           </div>
           <div className="share-row">
-            <input className="input mono" readOnly value={origin ? `${origin}${sharePath}` : sharePath} />
+            <input
+              className="input mono"
+              readOnly
+              value={origin ? `${origin}${sharePath}` : sharePath}
+              aria-label="Invitation link"
+            />
             <button
               className="btn btn-ghost"
               onClick={() => copy(origin ? `${origin}${sharePath}` : sharePath, 'share')}
             >
               {copied === 'share' ? 'Copied' : 'Copy link'}
             </button>
+            {copyOutcome && copyOutcome.outcome === 'copied' ? (
+              <span className="muted small">Copied</span>
+            ) : null}
+            {copyOutcome &&
+            copyOutcome.outcome === 'failed' ? (
+              <CopyFallback outcome={copyOutcome} />
+            ) : null}
           </div>
         </section>
 

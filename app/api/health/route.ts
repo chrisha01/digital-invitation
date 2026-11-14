@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic';
  */
 const PROBE_TIMEOUT_MS = 4_000;
 
+/**
+ * Probe the database with a hard timeout. Returns latency in ms when the DB
+ * responds in time, otherwise throws so the GET handler returns 503.
+ */
 async function probeDatabase(): Promise<number> {
   const started = Date.now();
   let timer: NodeJS.Timeout | undefined;
@@ -22,10 +26,20 @@ async function probeDatabase(): Promise<number> {
     timer.unref?.();
   });
 
+  const client = await getPool().connect();
   try {
-    await Promise.race([getPool().query('select 1'), deadline]);
-    return Date.now() - started;
+    await client.query('begin');
+    try {
+      await Promise.race([client.query('select 1'), deadline]);
+      await client.query('rollback');
+      return Date.now() - started;
+    } catch {
+      // The deadline fired – the DB did not answer in time.
+      await client.query('rollback').catch(() => undefined);
+      throw new Error('database probe timed out');
+    }
   } finally {
+    client.release();
     if (timer) clearTimeout(timer);
   }
 }

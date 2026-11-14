@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useCopy } from './useCopy';
+import CopyFallback from './CopyFallback';
 
 export default function ResetForm({ token, canEmail }: { token?: string; canEmail: boolean }) {
   const router = useRouter();
@@ -12,6 +14,7 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { copy: clipboardCopy, outcome: copyOutcome, clear: clearCopy } = useCopy();
 
   async function requestLink(e: React.FormEvent) {
     e.preventDefault();
@@ -121,17 +124,23 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
                 type="button"
                 className="btn btn-ghost btn-small"
                 onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(link);
+                  clearCopy();
+                  const result = await clipboardCopy(link);
+                  if (result?.outcome === 'copied') {
                     setCopied(true);
                     window.setTimeout(() => setCopied(false), 1600);
-                  } catch {
-                    setError('Copying needs clipboard permission in this browser.');
                   }
                 }}
               >
                 {copied ? 'Copied' : 'Copy link'}
               </button>
+              {copyOutcome && copyOutcome.outcome === 'copied' ? (
+                <span className="muted small">Copied</span>
+              ) : null}
+              {copyOutcome &&
+              copyOutcome.outcome === 'failed' ? (
+                <CopyFallback outcome={copyOutcome} />
+              ) : null}
               <a className="btn btn-primary btn-small" href={link}>
                 Open reset page
               </a>
