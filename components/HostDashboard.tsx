@@ -15,6 +15,7 @@ import type {
   Reminder,
   ReminderAudience,
   RsvpStatus,
+  SeatingPlan,
   TextAudience,
   TextBlast,
 } from '@/lib/types';
@@ -30,6 +31,19 @@ const STATUS_LABEL: Record<RsvpStatus, string> = {
   no: 'Declined',
   maybe: 'Maybe',
 };
+
+/** The two rows and seat plan a merge replaced, as the server kept them. */
+type MergeUndo = {
+  from: Guest;
+  into: Guest;
+  index: number;
+  seating?: SeatingPlan | null;
+};
+
+/** What the toast at the bottom offers to take back. */
+type UndoOffer =
+  | { kind: 'remove'; message: string; guest: Guest }
+  | { kind: 'merge'; message: string; merge: MergeUndo };
 
 /** Chips above the guest list: "all" or one RSVP status. */
 const GUEST_FILTERS = [
@@ -108,7 +122,7 @@ export default function HostDashboard({
   const [coHostBusy, setCoHostBusy] = useState(false);
   const [coHostError, setCoHostError] = useState<string | null>(null);
   const [household, setHousehold] = useState('');
-  const [undoGuest, setUndoGuest] = useState<Guest | null>(null);
+  const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [guestQuery, setGuestQuery] = useState('');
   const [guestStatus, setGuestStatus] = useState<'all' | RsvpStatus>('all');
@@ -128,10 +142,10 @@ export default function HostDashboard({
 
   // The undo offer clears itself, and clears its timer if the toast is closed.
   useEffect(() => {
-    if (!undoGuest) return;
-    const timer = window.setTimeout(() => setUndoGuest(null), 8000);
+    if (!undoOffer) return;
+    const timer = window.setTimeout(() => setUndoOffer(null), 8000);
     return () => window.clearTimeout(timer);
-  }, [undoGuest]);
+  }, [undoOffer]);
 
   const yes = guests.filter((g) => g.status === 'yes');
   const no = guests.filter((g) => g.status === 'no');
@@ -359,13 +373,11 @@ export default function HostDashboard({
       return;
     }
     setGuests(data.guests);
-    setUndoGuest(guest);
+    setUndoOffer({ kind: 'remove', message: `Removed ${guest.name}`, guest });
   }
 
-  async function undoRemove() {
-    const guest = undoGuest;
-    if (!guest) return;
-    setUndoGuest(null);
+  async function undoRemoval(guest: Guest) {
+    setUndoOffer(null);
     setRemoveError(null);
     const data = await call(
       `/api/invitations/${inv.id}/guests`,
@@ -379,7 +391,26 @@ export default function HostDashboard({
     if (!data?.guests) {
       // They are still deleted, so hand the offer back rather than lose it.
       setRemoveError(`Could not put ${guest.name} back. Undo is still available.`);
-      setUndoGuest(guest);
+      setUndoOffer({ kind: 'remove', message: `Removed ${guest.name}`, guest });
+      return;
+    }
+    setGuests(data.guests);
+    router.refresh();
+  }
+
+  async function undoMerge(merge: MergeUndo) {
+    setUndoOffer(null);
+    const data = await call(
+      `/api/invitations/${inv.id}/guests/merge`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ undo: merge }),
+      },
+      true,
+    );
+    if (!data?.guests) {
+      setRemoveError('Could not undo that merge — both rows are still merged.');
       return;
     }
     setGuests(data.guests);
@@ -411,6 +442,13 @@ export default function HostDashboard({
     setGuests(data.guests);
     setMergeFrom(null);
     setMergeIntoId('');
+    if (data.undo) {
+      setUndoOffer({
+        kind: 'merge',
+        message: `Merged ${from.name} into ${data.undo.into?.name ?? 'the other guest'}`,
+        merge: data.undo,
+      });
+    }
     // The removed row's personal link goes away with it.
     router.refresh();
   }
@@ -1527,12 +1565,17 @@ export default function HostDashboard({
         ) : null}
       </main>
 
-      {undoGuest ? (
+      {undoOffer ? (
         <div className="undo-toast" role="status">
-          <span>
-            Removed {undoGuest.name}
-          </span>
-          <button type="button" onClick={undoRemove}>
+          <span>{undoOffer.message}</span>
+          <button
+            type="button"
+            onClick={() =>
+              undoOffer.kind === 'remove'
+                ? undoRemoval(undoOffer.guest)
+                : undoMerge(undoOffer.merge)
+            }
+          >
             Undo
           </button>
         </div>

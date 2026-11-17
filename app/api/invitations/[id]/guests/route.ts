@@ -2,17 +2,13 @@ import { NextResponse } from 'next/server';
 import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { newId } from '@/lib/defaults';
+import { guestFromCopy } from '@/lib/guest-restore';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 import type { Guest, Invitation, RsvpStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 const STATUSES: RsvpStatus[] = ['invited', 'yes', 'no', 'maybe'];
-
-/** Whole-number party counts from an undo payload. */
-function count(value: unknown) {
-  return Math.max(0, Math.min(50, Math.floor(Number(value) || 0)));
-}
 
 /** The guest list belongs to the invitation's owner, never to a guest link. */
 async function owns(id: string): Promise<boolean> {
@@ -37,46 +33,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   // Undo path: put a removed guest back exactly as they were, keeping their id
   // so the personal link they were sent still works.
-  const restore = body?.restore;
-  if (restore) {
-    const guestId = typeof restore.id === 'string' ? restore.id.trim() : '';
-    const restoredName = (restore.name ?? '').trim().slice(0, 120);
-    if (!guestId || !restoredName) {
-      return NextResponse.json({ error: 'Nothing to restore.' }, { status: 400 });
-    }
+  const restore = guestFromCopy(body?.restore);
+  if (body?.restore) {
+    if (!restore) return NextResponse.json({ error: 'Nothing to restore.' }, { status: 400 });
     const current = await getInvitation(id);
-    if (current?.guests.some((guest) => guest.id === guestId)) {
+    if (current?.guests.some((guest) => guest.id === restore.id)) {
       return NextResponse.json({ error: 'That guest is already on the list.' }, { status: 409 });
     }
-
-    const answers: Record<string, string> = {};
-    for (const [key, value] of Object.entries(restore.answers ?? {})) {
-      if (typeof value === 'string' && value) answers[key.slice(0, 80)] = value.slice(0, 500);
-    }
-
     return respond(id, (invitation) => {
-      const guest: Guest = {
-        id: guestId,
-        name: restoredName,
-        email: String(restore.email ?? '').trim().slice(0, 200),
-        household: String(restore.household ?? '').trim().slice(0, 80),
-        tag: String(restore.tag ?? '').trim().slice(0, 60) || 'Friends',
-        status: STATUSES.includes(restore.status) ? restore.status : 'invited',
-        plusOnes: count(restore.plusOnes),
-        adults: count(restore.adults),
-        children: count(restore.children),
-        answers,
-        message: String(restore.message ?? '').slice(0, 2000),
-        respondedAt: typeof restore.respondedAt === 'string' ? restore.respondedAt : null,
-      };
-      if (restore.dietary) guest.dietary = String(restore.dietary).slice(0, 300);
-      if (restore.accessibility) guest.accessibility = String(restore.accessibility).slice(0, 300);
-      if (restore.phone) guest.phone = String(restore.phone).trim().slice(0, 40);
-      if (typeof restore.smsConsent === 'boolean') guest.smsConsent = restore.smsConsent;
-      if (restore.companionOf) guest.companionOf = String(restore.companionOf).slice(0, 80);
-      if (restore.checkedInAt) guest.checkedInAt = String(restore.checkedInAt);
-      if (restore.checkedInBy) guest.checkedInBy = String(restore.checkedInBy).slice(0, 120);
-      invitation.guests.push(guest);
+      invitation.guests.push(restore);
     });
   }
 
