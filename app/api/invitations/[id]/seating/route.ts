@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
-import { cleanSeating } from '@/lib/seating';
+import { cleanSeating, dropUnknownChairs } from '@/lib/seating';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 
 export async function PUT(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -12,10 +12,13 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const body: unknown = await request.json().catch(() => null);
-  const plan = cleanSeating(body);
-  if (!plan) return NextResponse.json({ error: 'Invalid seating plan' }, { status: 400 });
+  const seating = cleanSeating(body);
+  if (!seating) return NextResponse.json({ error: 'Invalid seating plan' }, { status: 400 });
 
   const updated = await mutateInvitation(id, (invitation) => {
+    // A chair only holds someone who is still on the list, checked against the
+    // guests as they are now rather than as the browser saw them.
+    const plan = dropUnknownChairs(seating, invitation.guests.map((guest) => guest.id));
     invitation.seating = { ...plan, updatedAt: new Date().toISOString() };
   });
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });

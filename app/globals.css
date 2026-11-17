@@ -2659,6 +2659,14 @@ input[type='range'] {
   letter-spacing: 0.02em;
 }
 
+.seat-chair.is-orphan {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .seat-chair.is-continued {
   background: rgba(33, 29, 24, 0.45);
   border-color: rgba(33, 29, 24, 0.45);

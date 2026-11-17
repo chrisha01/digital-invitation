@@ -229,6 +229,32 @@ export function cleanSeating(input: unknown): SeatingPlan | null {
   };
 }
 
+/**
+ * A chair can only hold someone still on the list. A guest removed after they
+ * were seated would otherwise leave the seat taken by an id nobody owns, so
+ * their chair is handed back and their remembered size dropped.
+ */
+export function dropUnknownChairs(plan: SeatingPlan, guestIds: Iterable<string>): SeatingPlan {
+  const known = new Set(guestIds);
+
+  let touched = false;
+  const tables = plan.tables.map((table) => {
+    if (!Array.isArray(table.chairs)) return table;
+    const chairs = table.chairs.map((id) => (id && !known.has(id) ? null : id));
+    if (chairs.every((id, index) => id === table.chairs[index])) return table;
+    touched = true;
+    return { ...table, chairs };
+  });
+
+  let snapshot = plan.snapshot;
+  if (snapshot && Object.keys(snapshot).some((id) => !known.has(id))) {
+    snapshot = Object.fromEntries(Object.entries(snapshot).filter(([id]) => known.has(id)));
+  }
+
+  if (!touched && snapshot === plan.snapshot) return plan;
+  return { ...plan, tables: touched ? tables : plan.tables, snapshot };
+}
+
 export function tableLoad(table: SeatTable): number {
   return table.chairs.filter(Boolean).length;
 }

@@ -26,7 +26,6 @@ import {
 } from '@/lib/seating';
 import type { SeatMode } from '@/lib/seating';
 import type {
-  Guest,
   Invitation,
   SeatShape,
   SeatTable,
@@ -67,6 +66,9 @@ function initials(name: string): string {
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('');
 }
+
+/** A chair can outlive its guest; this is what it says then. */
+const UNKNOWN_GUEST = 'Unknown guest';
 
 export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   const byId = useMemo(() => new Map(inv.guests.map((guest) => [guest.id, guest])), [inv.guests]);
@@ -288,10 +290,10 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
 
   async function copyPlan() {
     const tables = plan.tables.map((table) => {
-      const names = tableParties(table)
-        .map((id) => byId.get(id))
-        .filter((guest): guest is Guest => Boolean(guest))
-        .map((guest) => `${guest.name} (${partySize(guest)})`);
+      const names = tableParties(table).map((id) => {
+        const guest = byId.get(id);
+        return guest ? `${guest.name} (${partySize(guest)})` : UNKNOWN_GUEST;
+      });
       return `${table.name} — ${tableLoad(table)} of ${table.seats}\n${names.length ? names.map((name) => `  ${name}`).join('\n') : '  empty'}`;
     });
     const venue = items.length ? [`Room: ${items.map((item) => item.label).join(', ')}`] : [];
@@ -515,13 +517,14 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
                   </span>
                   <span className="seat-table-parties">
                     {tableParties(table)
-                      .map((id) => byId.get(id)?.name)
-                      .filter(Boolean)
+                      .map((id) => byId.get(id)?.name ?? UNKNOWN_GUEST)
                       .join(', ') || 'Every chair free'}
                   </span>
 
                   {table.chairs.map((occupantId, index) => {
                     const guest = occupantId ? byId.get(occupantId) : null;
+                    // Taken, but by a guest who is no longer on the list.
+                    const orphan = Boolean(occupantId) && !guest;
                     const previous =
                       table.chairs[(index - 1 + table.chairs.length) % table.chairs.length];
                     const continued = Boolean(occupantId) && previous === occupantId;
@@ -535,6 +538,7 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
                         className={[
                           'seat-chair',
                           occupantId ? 'is-taken' : '',
+                          orphan ? 'is-orphan' : '',
                           continued ? 'is-continued' : '',
                           held ? 'is-spare' : '',
                           dropChair?.tableId === table.id && dropChair.chair === index ? 'is-over' : '',
@@ -562,17 +566,33 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
                           setDragged(null);
                         }}
                         aria-label={`${table.name}, chair ${index + 1}${
-                          held ? ', held spare' : guest ? `, ${guest.name}` : ', empty'
+                          held
+                            ? ', held spare'
+                            : guest
+                              ? `, ${guest.name}`
+                              : orphan
+                                ? ', unknown guest'
+                                : ', empty'
                         }`}
                         title={
                           held
                             ? 'Held spare for a late plus-one'
                             : guest
                               ? `${guest.name} — chair ${index + 1}. Click to lift out of the chair.`
-                              : `Chair ${index + 1} — empty`
+                              : orphan
+                                ? `Chair ${index + 1} — this guest is no longer on the list. Click to free the chair.`
+                                : `Chair ${index + 1} — empty`
                         }
                       >
-                        {occupantId ? (continued ? '·' : initials(guest?.name ?? '')) : held ? '–' : index + 1}
+                        {occupantId
+                          ? continued
+                            ? '·'
+                            : guest
+                              ? initials(guest.name)
+                              : '?'
+                          : held
+                            ? '–'
+                            : index + 1}
                       </button>
                     );
                   })}

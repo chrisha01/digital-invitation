@@ -3,7 +3,7 @@ import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { guestFromCopy } from '@/lib/guest-restore';
 import { mergeGuests } from '@/lib/guest-merge';
-import { cleanSeating, handOverSeat } from '@/lib/seating';
+import { cleanSeating, dropUnknownChairs, handOverSeat } from '@/lib/seating';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 import type { Guest, SeatingPlan } from '@/lib/types';
 
@@ -79,7 +79,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       current.guests[at] = into;
       // The row returns to its old place in the list; splice holds the upper bound.
       current.guests.splice(index, 0, from);
-      if (plan) current.seating = plan;
+      // Checked after the row is back, so its own chair counts as known again;
+      // anything else the copy names is gone and gets its seat handed back.
+      if (plan) {
+        current.seating = dropUnknownChairs(plan, current.guests.map((guest) => guest.id));
+      }
       restored = true;
     });
 

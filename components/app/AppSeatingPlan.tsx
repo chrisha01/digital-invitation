@@ -30,6 +30,9 @@ function initials(name: string): string {
     .join('');
 }
 
+/** A chair can outlive its guest; this is what it says then. */
+const UNKNOWN_GUEST = 'Unknown guest';
+
 /** The exact body the seating API takes, so an untouched plan never re-saves. */
 const payload = (plan: SeatingPlan) =>
   JSON.stringify({
@@ -226,9 +229,9 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
               ))}
 
               {plan.tables.map((table) => {
-                const names = tableParties(table)
-                  .map((id) => byId.get(id)?.name)
-                  .filter(Boolean);
+                const names = tableParties(table).map(
+                  (id) => byId.get(id)?.name ?? UNKNOWN_GUEST,
+                );
                 const points = chairPoints(table);
                 return (
                   <div
@@ -251,6 +254,8 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
 
                     {table.chairs.map((occupantId, index) => {
                       const guest = occupantId ? byId.get(occupantId) : null;
+                      // Taken, but by a guest who is no longer on the list.
+                      const orphan = Boolean(occupantId) && !guest;
                       const previous =
                         table.chairs[(index - 1 + table.chairs.length) % table.chairs.length];
                       const continued = Boolean(occupantId) && previous === occupantId;
@@ -264,6 +269,7 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
                           className={[
                             'seat-chair',
                             occupantId ? 'is-taken' : '',
+                            orphan ? 'is-orphan' : '',
                             continued ? 'is-continued' : '',
                             held ? 'is-spare' : '',
                           ]
@@ -275,7 +281,9 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
                               ? ', held spare'
                               : guest
                                 ? `, ${guest.name}`
-                                : ', empty'
+                                : orphan
+                                  ? ', unknown guest'
+                                  : ', empty'
                           }`}
                           onClick={() => {
                             if (occupantId) {
@@ -292,7 +300,9 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
                           {occupantId
                             ? continued
                               ? '·'
-                              : initials(guest?.name ?? '')
+                              : guest
+                                ? initials(guest.name)
+                                : '?'
                             : held
                               ? '–'
                               : index + 1}
