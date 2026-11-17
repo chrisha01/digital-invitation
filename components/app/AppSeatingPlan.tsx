@@ -260,6 +260,9 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
                         table.chairs[(index - 1 + table.chairs.length) % table.chairs.length];
                       const continued = Boolean(occupantId) && previous === occupantId;
                       const held = index >= usableSeats(table);
+                      const who = held
+                        ? 'held spare'
+                        : guest?.name ?? (orphan ? 'unknown guest' : 'empty');
                       const point = points[index];
                       return (
                         <button
@@ -276,15 +279,7 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
                             .filter(Boolean)
                             .join(' ')}
                           style={{ left: `${point.left}%`, top: `${point.top}%` }}
-                          aria-label={`${table.name}, chair ${index + 1}${
-                            held
-                              ? ', held spare'
-                              : guest
-                                ? `, ${guest.name}`
-                                : orphan
-                                  ? ', unknown guest'
-                                  : ', empty'
-                          }`}
+                          aria-label={`${table.name}, chair ${index + 1}, ${who}`}
                           onClick={() => {
                             if (occupantId) {
                               seatAt(occupantId, '');

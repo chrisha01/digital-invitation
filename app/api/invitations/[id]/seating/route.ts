@@ -16,10 +16,12 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
   if (!seating) return NextResponse.json({ error: 'Invalid seating plan' }, { status: 400 });
 
   const updated = await mutateInvitation(id, (invitation) => {
-    // A chair only holds someone who is still on the list, checked against the
-    // guests as they are now rather than as the browser saw them.
-    const plan = dropUnknownChairs(seating, invitation.guests.map((guest) => guest.id));
-    invitation.seating = { ...plan, updatedAt: new Date().toISOString() };
+    // A chair only holds someone still on the list, as it is now rather than
+    // as the browser saw it.
+    invitation.seating = {
+      ...dropUnknownChairs(seating, invitation.guests),
+      updatedAt: new Date().toISOString(),
+    };
   });
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ seating: updated.seating });

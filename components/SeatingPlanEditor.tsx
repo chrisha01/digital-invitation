@@ -530,6 +530,9 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
                     const continued = Boolean(occupantId) && previous === occupantId;
                     const point = chairPoints(table)[index];
                     const held = index >= usableSeats(table);
+                    const who = held
+                      ? 'held spare'
+                      : guest?.name ?? (orphan ? 'unknown guest' : 'empty');
                     return (
                       <button
                         key={index}
@@ -565,15 +568,7 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
                           setDropChair(null);
                           setDragged(null);
                         }}
-                        aria-label={`${table.name}, chair ${index + 1}${
-                          held
-                            ? ', held spare'
-                            : guest
-                              ? `, ${guest.name}`
-                              : orphan
-                                ? ', unknown guest'
-                                : ', empty'
-                        }`}
+                        aria-label={`${table.name}, chair ${index + 1}, ${who}`}
                         title={
                           held
                             ? 'Held spare for a late plus-one'

@@ -234,15 +234,12 @@ export function cleanSeating(input: unknown): SeatingPlan | null {
  * were seated would otherwise leave the seat taken by an id nobody owns, so
  * their chair is handed back and their remembered size dropped.
  */
-export function dropUnknownChairs(plan: SeatingPlan, guestIds: Iterable<string>): SeatingPlan {
-  const known = new Set(guestIds);
+export function dropUnknownChairs(plan: SeatingPlan, guests: { id: string }[]): SeatingPlan {
+  const known = new Set(guests.map((guest) => guest.id));
 
-  let touched = false;
   const tables = plan.tables.map((table) => {
-    if (!Array.isArray(table.chairs)) return table;
     const chairs = table.chairs.map((id) => (id && !known.has(id) ? null : id));
     if (chairs.every((id, index) => id === table.chairs[index])) return table;
-    touched = true;
     return { ...table, chairs };
   });
 
@@ -251,8 +248,9 @@ export function dropUnknownChairs(plan: SeatingPlan, guestIds: Iterable<string>)
     snapshot = Object.fromEntries(Object.entries(snapshot).filter(([id]) => known.has(id)));
   }
 
-  if (!touched && snapshot === plan.snapshot) return plan;
-  return { ...plan, tables: touched ? tables : plan.tables, snapshot };
+  const untouched = tables.every((table, index) => table === plan.tables[index]);
+  if (untouched && snapshot === plan.snapshot) return plan;
+  return { ...plan, tables, snapshot };
 }
 
 export function tableLoad(table: SeatTable): number {

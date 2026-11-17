@@ -79,11 +79,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       current.guests[at] = into;
       // The row returns to its old place in the list; splice holds the upper bound.
       current.guests.splice(index, 0, from);
-      // Checked after the row is back, so its own chair counts as known again;
-      // anything else the copy names is gone and gets its seat handed back.
-      if (plan) {
-        current.seating = dropUnknownChairs(plan, current.guests.map((guest) => guest.id));
-      }
+      // Checked after the splice, so the restored row's own chair counts as
+      // known again; any other gone guest gets its seat handed back.
+      if (plan) current.seating = dropUnknownChairs(plan, current.guests);
       restored = true;
     });
 
