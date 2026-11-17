@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useCopy } from './useCopy';
 import CopyFallback from './CopyFallback';
@@ -62,16 +63,20 @@ function tomorrowMorning() {
 
 export default function HostDashboard({
   inv,
+  guestLinks = {},
   sms,
   mail,
   role,
 }: {
   inv: Invitation;
+  /** Signatures for each guest's personal link, issued by the server. */
+  guestLinks?: Record<string, string>;
   sms: { configured: boolean; missing: string[] };
   mail: { configured: boolean; missing: string[] };
   role: 'owner' | 'collaborator';
 }) {
   const isOwner = role === 'owner';
+  const router = useRouter();
   const [guests, setGuests] = useState<Guest[]>(inv.guests);
   const [origin, setOrigin] = useState('');
   const [name, setName] = useState('');
@@ -254,6 +259,9 @@ export default function HostDashboard({
       setName('');
       setEmail('');
       setHousehold('');
+      // Personal links are signed by the server, so a guest added now only gets
+      // one once the page's props catch up.
+      router.refresh();
     }
   }
 
@@ -373,6 +381,7 @@ export default function HostDashboard({
       return;
     }
     setGuests(data.guests);
+    router.refresh();
   }
 
   async function copy(text: string, key: string) {
@@ -1023,7 +1032,9 @@ export default function HostDashboard({
                             className="btn btn-ghost btn-small"
                             onClick={() =>
                               copy(
-                                `${origin}/i/${inv.id}?g=${guest.id}`,
+                                `${origin}/i/${inv.id}?g=${encodeURIComponent(guest.id)}${
+                                  guestLinks[guest.id] ? `&t=${guestLinks[guest.id]}` : ''
+                                }`,
                                 guest.id,
                               )
                             }

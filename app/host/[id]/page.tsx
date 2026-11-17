@@ -4,6 +4,7 @@ import HostDashboard from '@/components/HostDashboard';
 import { canManage, isOwner } from '@/lib/access';
 import { requireUser } from '@/lib/auth';
 import { emailSetup } from '@/lib/email';
+import { guestTokens } from '@/lib/guest-token';
 import { runDueReminders } from '@/lib/reminders';
 import { smsSetup } from '@/lib/sms';
 import { getInvitation } from '@/lib/store';
@@ -28,9 +29,16 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
   void runDueReminders(stored, origin).catch(() => undefined);
   const sms = smsSetup();
   const email = emailSetup();
+  // Personal links are signed, so the dashboard needs the signatures for the
+  // guests it can copy links for.
+  const guestLinks = await guestTokens(
+    stored.id,
+    stored.guests.map((guest) => guest.id),
+  );
   return (
     <HostDashboard
       inv={stored}
+      guestLinks={guestLinks}
       sms={{ configured: Boolean(sms.provider), missing: sms.missing }}
       mail={{ configured: Boolean(email.provider), missing: email.missing }}
       role={isOwner(stored, user) ? 'owner' : 'collaborator'}

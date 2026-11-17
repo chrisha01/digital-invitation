@@ -3,6 +3,7 @@ import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { newId } from '@/lib/defaults';
 import { emailRecipients, emailSetup, sendEmail } from '@/lib/email';
+import { guestLink } from '@/lib/guest-token';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 import type { EmailBlast, TextAudience } from '@/lib/types';
 
@@ -80,7 +81,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const failures: { guest: string; reason: string }[] = [];
   for (const guest of recipients) {
     const text = includeLink
-      ? `${body}\n\nYour invitation: ${origin}/i/${id}?g=${guest.id}`
+      ? `${body}\n\nYour invitation: ${await guestLink(origin, id, guest.id)}`
       : body;
     try {
       await sendEmail(setup, { to: guest.email.trim(), subject, text });

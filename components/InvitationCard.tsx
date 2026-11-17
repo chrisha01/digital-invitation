@@ -15,7 +15,8 @@ const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(mi
 const round = (n: number) => Math.round(n * 10) / 10;
 
 type Props = {
-  inv: Invitation;
+  /** Only the card and the design that styles it; a guest page holds no more. */
+  inv: Pick<Invitation, 'designSlug' | 'card'>;
   editable?: boolean;
   selectedLayerId?: string | null;
   onSelectLayer?: (id: string) => void;

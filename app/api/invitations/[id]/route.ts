@@ -2,10 +2,24 @@ import { NextResponse } from 'next/server';
 import { canManage, isOwner } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { discardImages, imageUrls } from '@/lib/images';
-import { deleteInvitation, getInvitation, putInvitation } from '@/lib/store';
+import { deleteInvitation, getInvitation, mutateInvitation } from '@/lib/store';
 import type { Invitation } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+/** The sections a design save may change, and the only ones it may change. */
+const EDITABLE = [
+  'title',
+  'subject',
+  'designSlug',
+  'card',
+  'envelope',
+  'backdrop',
+  'event',
+  'settings',
+  'page',
+  'blocks',
+] as const;
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
@@ -33,26 +47,26 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: 'Invitation payload is missing sections' }, { status: 400 });
   }
 
-  const next: Invitation = {
-    ...existing,
-    ...body,
-    id,
-    // Ownership and co-host access belong to their own endpoints, so a design
-    // save from a co-host cannot hand them the invitation.
-    ownerId: existing.ownerId,
-    collaborators: existing.collaborators,
-    // Guests and their replies are owned by the RSVP endpoints, never by a design save.
-    guests: existing.guests,
-    createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
-  };
-
   const before = imageUrls(existing);
-  await putInvitation(next);
+
+  // The read, the merge and the write happen inside one locked transaction: the
+  // editor autosaves the document it loaded, so a reply that arrives mid-edit
+  // must be merged into rather than overwritten by that older copy.
+  const updated = await mutateInvitation(id, (current) => {
+    const draft = current as unknown as Record<string, unknown>;
+    for (const section of EDITABLE) {
+      const value = (body as Record<string, unknown>)[section];
+      if (value !== undefined) draft[section] = value;
+    }
+    // Guests, replies, ownership, co-host access, send history and the seating
+    // plan belong to their own endpoints; a design save never touches them.
+  });
+  if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   // A replaced photo leaves an object behind; remove it once the save is stored.
-  const after = imageUrls(next);
+  const after = imageUrls(updated);
   await discardImages(before.filter((url) => !after.includes(url)));
-  return NextResponse.json({ invitation: next });
+  return NextResponse.json({ invitation: updated });
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {

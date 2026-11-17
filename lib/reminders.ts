@@ -1,5 +1,6 @@
 import { newId } from './defaults';
 import { emailSetup, sendEmail } from './email';
+import { guestLink } from './guest-token';
 import { reminderRecipients } from './reminder-audience';
 import { smsSetup, sendText } from './sms';
 import { getInvitation, mutateInvitation } from './store';
@@ -132,7 +133,7 @@ export async function runDueReminders(invitation: Invitation, origin = ''): Prom
     let delivered = 0;
     const failures: string[] = [];
     for (const guest of recipients) {
-      const link = origin ? `${origin}/i/${invitation.id}?g=${guest.id}` : `/i/${invitation.id}?g=${guest.id}`;
+      const link = await guestLink(origin, invitation.id, guest.id);
       try {
         if (channel === 'email') {
           await sendEmail(mail, {

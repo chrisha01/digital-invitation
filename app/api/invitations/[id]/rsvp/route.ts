@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { newId } from '@/lib/defaults';
+import { guestToken, verifyGuestToken } from '@/lib/guest-token';
 import { rateGate } from '@/lib/rate-limit';
 import { mutateInvitation } from '@/lib/store';
 import type { Guest, RsvpStatus } from '@/lib/types';
@@ -38,6 +39,8 @@ type Body = {
   answers?: Record<string, string>;
   message?: string;
   guestId?: string;
+  /** Signature from this guest's personal link; an id without one proves nothing. */
+  guestToken?: string;
   companions?: string[];
 };
 
@@ -49,6 +52,44 @@ const clampCount = (value: unknown, min: number, max: number) => {
 
 const partySize = (guest: Guest) =>
   guest.status === 'yes' ? Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes) : 0;
+
+/**
+ * Whose row a reply belongs to, strongest proof first:
+ *
+ *   1. the guest a signed personal link names;
+ *   2. the one row carrying this email address — an ambiguous address matches
+ *      nobody, since an invitation holds one row per person;
+ *   3. a row the host started with a name and nothing else. Filling in an empty
+ *      row is not overwriting anyone's data.
+ *
+ * A typed name on its own never claims a row: names are public, so matching on
+ * one would let any link holder answer for somebody else.
+ */
+function guestForReply(
+  guests: Guest[],
+  { name, email, signedId }: { name: string; email: string; signedId: string | null },
+): Guest | undefined {
+  if (signedId) {
+    const signed = guests.find((row) => row.id === signedId);
+    if (signed) return signed;
+  }
+
+  if (email) {
+    const matches = guests.filter(
+      (row) => row.email && row.email.toLowerCase() === email.toLowerCase(),
+    );
+    if (matches.length === 1) return matches[0];
+  }
+
+  const sameName = guests.filter(
+    (row) =>
+      row.name.trim().toLowerCase() === name.toLowerCase() &&
+      !row.email &&
+      row.status === 'invited' &&
+      !row.respondedAt,
+  );
+  return sameName.length === 1 ? sameName[0] : undefined;
+}
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -76,6 +117,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Please choose a reply.' }, { status: 400 });
   }
 
+  // The guest id is printed on every pass and was in the public page, so on its
+  // own it names nobody: only a link this server signed may speak for a row.
+  const signedGuestId =
+    body?.guestId && (await verifyGuestToken(id, body.guestId, body.guestToken))
+      ? body.guestId
+      : null;
+
   let savedGuestId: string | null = null;
 
   try {
@@ -96,12 +144,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           .map(([key, value]) => [key, String(value).slice(0, 500)]),
       );
 
-      let guest =
-        (body?.guestId ? invitation.guests.find((g) => g.id === body.guestId) : undefined) ??
-        (email
-          ? invitation.guests.find((g) => g.email && g.email.toLowerCase() === email.toLowerCase())
-          : undefined) ??
-        invitation.guests.find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+      let guest = guestForReply(invitation.guests, { name, email, signedId: signedGuestId });
 
       if (!guest) {
         guest = {
@@ -120,7 +163,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         invitation.guests.push(guest);
       }
 
-      guest.name = name;
+      // A typed name is not proof of identity, so it never renames an existing
+      // row: only the holder of that guest's own link may change the name.
+      if (signedGuestId) guest.name = name;
       if (email) guest.email = email;
       guest.household = (body?.household ?? '').trim().slice(0, 80) || guest.household || '';
       guest.dietary = (body?.dietary ?? '').trim().slice(0, 300);
@@ -212,7 +257,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!updated) return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
 
     const saved = updated.guests.find((g) => g.id === savedGuestId) ?? null;
-    return gate.applyCookie(NextResponse.json({ guest: saved }));
+    // Hand back a signature for the row this reply went into, so a correction
+    // later in the same visit is recognised as that guest rather than starting a
+    // second row. It grants nothing beyond the row the caller just wrote.
+    const token = saved ? await guestToken(id, saved.id) : null;
+    return gate.applyCookie(NextResponse.json({ guest: saved, guestToken: token }));
   } catch (error) {
     if (error instanceof RsvpError) {
       return gate.applyCookie(

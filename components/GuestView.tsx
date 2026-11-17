@@ -1,20 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import EnvelopeCard from './EnvelopeCard';
 import InvitationCard from './InvitationCard';
 import RsvpForm from './RsvpForm';
 import { readableOn, withAlpha } from '@/lib/color';
 import { envelopeAnimation } from '@/lib/envelope-animations';
 import { resolveEnvelope } from '@/lib/designs';
-import { findSeat } from '@/lib/seating';
 import { playPaperOpen } from '@/lib/paper-sound';
 import { backdropStyle } from '@/lib/backdrop';
-import type { Guest, Invitation } from '@/lib/types';
+import type { GuestFacingInvitation, GuestPageViewer } from '@/lib/guest-view';
+import type { Guest } from '@/lib/types';
 
 type Stage = 'closed' | 'opening' | 'peek' | 'card' | 'page';
 
-function formatWhen(inv: Invitation): string {
+function formatWhen(inv: GuestFacingInvitation): string {
   const start = inv.event.startsAt ? new Date(inv.event.startsAt) : null;
   if (!start || Number.isNaN(start.getTime())) return '';
   const date = start.toLocaleDateString(undefined, {
@@ -27,7 +27,7 @@ function formatWhen(inv: Invitation): string {
   return `${date} · ${time}`;
 }
 
-function icsHref(inv: Invitation): string {
+function icsHref(inv: GuestFacingInvitation): string {
   const stamp = (value: string) =>
     new Date(value).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   const lines = [
@@ -50,17 +50,16 @@ function icsHref(inv: Invitation): string {
 
 export default function GuestView({
   inv,
-  guest: initialGuest,
-  guestName,
-  passSvg,
+  viewer,
 }: {
-  inv: Invitation;
-  guest: Guest | null;
-  guestName: string | null;
-  passSvg?: string | null;
+  inv: GuestFacingInvitation;
+  viewer: GuestPageViewer;
 }) {
   const [stage, setStage] = useState<Stage>(inv.envelope.enabled ? 'closed' : 'card');
-  const [guest, setGuest] = useState<Guest | null>(initialGuest);
+  const [guest, setGuest] = useState<Guest | null>(viewer.guest);
+  // A reply on an open link is given a token back, so a correction later in the
+  // same visit is still recognised as this guest rather than a new row.
+  const [token, setToken] = useState<string | null>(viewer.token);
   const [justSaved, setJustSaved] = useState(false);
   const [settling, setSettling] = useState(false);
   const [leavingEnvelope, setLeavingEnvelope] = useState(false);
@@ -91,12 +90,6 @@ export default function GuestView({
     if (next) playPaperOpen();
   }
 
-  const confirmed = useMemo(() => inv.guests.filter((g) => g.status === 'yes'), [inv.guests]);
-  const headcount = useMemo(
-    () => confirmed.reduce((sum, g) => sum + Math.max(1, g.adults + g.children, 1 + g.plusOnes), 0),
-    [confirmed],
-  );
-
   function openEnvelope() {
     if (stage !== 'closed') return;
     if (soundOn) playPaperOpen();
@@ -121,10 +114,7 @@ export default function GuestView({
     timers.current.push(window.setTimeout(() => setLeavingEnvelope(false), opening.doneAt));
   }
 
-  const displayName = guest?.name ?? guestName;
-  // Seats stay private until the hosts mark the plan final, so a half-drawn
-  // room never appears on the invitation.
-  const assignedSeat = guest && inv.seating?.finalized ? findSeat(inv.seating, guest.id) : null;
+  const displayName = guest?.name ?? viewer.name;
   const envelopeVisible =
     stage === 'closed' || stage === 'opening' || stage === 'peek' || leavingEnvelope;
 
@@ -236,10 +226,10 @@ export default function GuestView({
               </p>
             ) : null}
 
-            {assignedSeat ? (
+            {inv.seat ? (
               <p className="guest-seat">
                 <span style={{ color: inv.page.accent }}>Your table</span>
-                {assignedSeat.table.name} · chair {assignedSeat.chair}
+                {inv.seat.tableName} · chair {inv.seat.chair}
               </p>
             ) : null}
 
@@ -259,13 +249,13 @@ export default function GuestView({
               ) : null}
             </div>
 
-            {guest && passSvg ? (
+            {guest && viewer.passSvg ? (
               <details className="guest-pass">
                 <summary>Your entry pass</summary>
                 <div
                   className="guest-pass-code"
                   // Generated on the server from our own pass code, never guest input.
-                  dangerouslySetInnerHTML={{ __html: passSvg }}
+                  dangerouslySetInnerHTML={{ __html: viewer.passSvg }}
                 />
                 <p className="muted small">
                   Show this at the door, or read out the code <code>{guest.id}</code>.
@@ -310,20 +300,23 @@ export default function GuestView({
                 <RsvpForm
                   inv={inv}
                   guest={guest}
-                  onSaved={(saved) => {
+                  guestToken={token}
+                  defaultName={viewer.name}
+                  onSaved={(saved, savedToken) => {
                     setGuest(saved);
+                    if (savedToken) setToken(savedToken);
                     setJustSaved(true);
                   }}
                 />
               )
             ) : null}
 
-            {inv.settings.showGuestList && confirmed.length > 0 ? (
+            {inv.guestNames.length > 0 ? (
               <section className="guest-block">
                 <h2 style={{ fontFamily: inv.page.fontHeading }}>Who&rsquo;s coming</h2>
                 <p className="guest-list-line">
-                  {confirmed.map((g) => g.name).join(' · ')}
-                  {headcount > confirmed.length ? ` · ${headcount} guests in all` : ''}
+                  {inv.guestNames.join(' · ')}
+                  {inv.headcount > inv.guestNames.length ? ` · ${inv.headcount} guests in all` : ''}
                 </p>
               </section>
             ) : null}

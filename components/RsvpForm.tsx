@@ -1,16 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import type { Guest, Invitation } from '@/lib/types';
+import type { GuestFacingInvitation } from '@/lib/guest-view';
+import type { Guest } from '@/lib/types';
 
 type Props = {
-  inv: Invitation;
+  inv: GuestFacingInvitation;
   guest: Guest | null;
-  onSaved: (guest: Guest) => void;
+  /** Signature from this guest's personal link, when they arrived on one. */
+  guestToken?: string | null;
+  /** The name on the envelope, for an unsigned link that knows no more. */
+  defaultName?: string | null;
+  onSaved: (guest: Guest, token: string | null) => void;
 };
 
-export default function RsvpForm({ inv, guest, onSaved }: Props) {
-  const [name, setName] = useState(guest?.name ?? '');
+export default function RsvpForm({
+  inv,
+  guest,
+  guestToken,
+  defaultName,
+  onSaved,
+}: Props) {
+  const [name, setName] = useState(guest?.name ?? defaultName ?? '');
   const [email, setEmail] = useState(guest?.email ?? '');
   const [household, setHousehold] = useState(guest?.household ?? '');
   const [dietary, setDietary] = useState(guest?.dietary ?? '');
@@ -21,14 +32,9 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
     guest && guest.status !== 'invited' ? guest.status : 'yes',
   );
   const [plusOnes, setPlusOnes] = useState(guest?.plusOnes ?? 0);
-  const [companions, setCompanions] = useState<string[]>(() =>
-    guest
-      ? inv.guests
-          .filter((row) => row.companionOf === guest.id)
-          // A placeholder name is not an answer; leave the field empty for it.
-          .map((row) => (row.name.startsWith('Guest of ') ? '' : row.name))
-      : [],
-  );
+  // The server already picked out this guest's plus-ones; the guest list itself
+  // is not in the page.
+  const [companions, setCompanions] = useState<string[]>(() => (guest ? inv.companions : []));
   const [adults, setAdults] = useState(Math.max(1, guest?.adults ?? 1));
   const [children, setChildren] = useState(guest?.children ?? 0);
   const [answers, setAnswers] = useState<Record<string, string>>(guest?.answers ?? {});
@@ -76,13 +82,14 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
           answers,
           message,
           guestId: guest?.id,
+          guestToken: guestToken ?? undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error ?? 'That did not save. Please try again.');
       } else {
-        onSaved(data.guest as Guest);
+        onSaved(data.guest as Guest, (data.guestToken as string | null) ?? null);
       }
     } catch {
       setError('Network problem — please try again.');
