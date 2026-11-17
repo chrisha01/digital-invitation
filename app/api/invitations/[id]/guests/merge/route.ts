@@ -3,7 +3,7 @@ import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { guestFromCopy } from '@/lib/guest-restore';
 import { mergeGuests } from '@/lib/guest-merge';
-import { handOverSeat, resolveSeating } from '@/lib/seating';
+import { cleanSeating, handOverSeat } from '@/lib/seating';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 import type { Guest, SeatingPlan } from '@/lib/types';
 
@@ -18,26 +18,6 @@ type MergeUndo = {
   companions: string[];
   seating: SeatingPlan | null;
 };
-
-/**
- * A seat plan the dashboard kept, held to the same rules as a saved one: every
- * table and area needs its id, and the size snapshot keeps only real counts.
- */
-function planFromCopy(input: unknown): SeatingPlan | null {
-  const plan = input as SeatingPlan | null;
-  if (!Array.isArray(plan?.tables)) return null;
-  const items = Array.isArray(plan.items) ? plan.items : [];
-  if ([...plan.tables, ...items].some((piece) => typeof piece?.id !== 'string' || !piece.id)) {
-    return null;
-  }
-
-  const snapshot: Record<string, number> = {};
-  for (const [guestId, size] of Object.entries(plan.snapshot ?? {})) {
-    const held = Math.round(Number(size));
-    if (held > 0 && held <= 40) snapshot[guestId] = held;
-  }
-  return resolveSeating({ ...plan, items, snapshot });
-}
 
 /**
  * A duplicate row is the same guest entered twice, so merging keeps one row and
@@ -75,7 +55,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     const into = guestFromCopy(body.undo.into);
     if (!from || !into) return NextResponse.json({ error: 'Nothing to undo.' }, { status: 400 });
     const index = Math.max(0, Math.floor(Number(body.undo.index) || 0));
-    const plan = planFromCopy(body.undo.seating);
+    // The seat plan the merge changed, back as it was, cleaned like a save.
+    const plan = cleanSeating(body.undo.seating);
     // A row that came back has its plus-ones back too, so the companions the
     // merge gave the kept guest are returned to it rather than left behind.
     const moved = new Set(

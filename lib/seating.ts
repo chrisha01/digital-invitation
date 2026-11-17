@@ -92,6 +92,7 @@ export function normaliseDegrees(value: unknown): number {
 }
 
 const VENUE_SHAPES: VenueShape[] = ['rect', 'round', 'soft'];
+const TABLE_SHAPES: SeatShape[] = ['round', 'long', 'square'];
 
 export function normaliseItem(input: VenueItem): VenueItem {
   return {
@@ -115,6 +116,116 @@ export function resolveSeating(plan: SeatingPlan | undefined, guests?: Map<strin
     ),
     items: (plan.items ?? []).map(normaliseItem),
     snapshot: plan.snapshot ?? {},
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Number(value) || min));
+}
+
+/** Tables from a plan the browser sent, or null if any of them is not one. */
+function cleanTables(input: unknown): SeatTable[] | null {
+  if (!Array.isArray(input)) return null;
+  const tables: SeatTable[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') return null;
+    const table = raw as Record<string, unknown>;
+    if (typeof table.id !== 'string' || !table.id || seen.has(table.id)) return null;
+    seen.add(table.id);
+
+    const shape = TABLE_SHAPES.includes(table.shape as SeatShape)
+      ? (table.shape as SeatShape)
+      : 'round';
+    const seats = clampSeats(Number(table.seats));
+
+    const taken: (string | null)[] = Array.isArray(table.chairs)
+      ? table.chairs.slice(0, seats).map((id) => (typeof id === 'string' && id ? id : null))
+      : [];
+    const chairs = Array.from({ length: seats }, (_, index) => taken[index] ?? null);
+
+    tables.push({
+      id: table.id,
+      name: typeof table.name === 'string' ? table.name.slice(0, 60) || 'Table' : 'Table',
+      shape,
+      seats,
+      x: clamp(Number(table.x), 4, 96),
+      y: clamp(Number(table.y), 6, 94),
+      chairs,
+      rotation: normaliseDegrees(table.rotation),
+      spare: clampSpare(table.spare),
+    });
+  }
+
+  return tables;
+}
+
+/** Venue features from a plan the browser sent, or null if any is not one. */
+function cleanItems(input: unknown): VenueItem[] | null {
+  if (input === undefined) return [];
+  if (!Array.isArray(input)) return null;
+  const items: VenueItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') return null;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.id !== 'string' || !item.id || seen.has(item.id)) return null;
+    seen.add(item.id);
+
+    // Clamped here with these defaults, then normalised again below: the two
+    // share limits but not fallbacks, so a missing size lands at 6, not 24.
+    items.push(
+      normaliseItem({
+        id: item.id,
+        label: typeof item.label === 'string' ? item.label.slice(0, 40) || 'Area' : 'Area',
+        shape: VENUE_SHAPES.includes(item.shape as VenueShape)
+          ? (item.shape as VenueShape)
+          : 'rect',
+        w: clamp(Number(item.w), 6, 96),
+        h: clamp(Number(item.h), 4, 60),
+        x: clamp(Number(item.x), 4, 96),
+        y: clamp(Number(item.y), 6, 94),
+        rotation: normaliseDegrees(item.rotation),
+      }),
+    );
+  }
+
+  return items;
+}
+
+/**
+ * A seat plan as the dashboard sends it, or null when it is not one. This is
+ * the one place a browser-held plan is trusted: saving the room and putting an
+ * older plan back after an undo both come through here.
+ */
+export function cleanSeating(input: unknown): SeatingPlan | null {
+  const plan = (input && typeof input === 'object' ? input : {}) as {
+    tables?: unknown;
+    items?: unknown;
+    snapshot?: unknown;
+    finalized?: unknown;
+    updatedAt?: unknown;
+  };
+  const tables = cleanTables(plan.tables);
+  const items = cleanItems(plan.items);
+  if (!tables || !items) return null;
+
+  const snapshot: Record<string, number> = {};
+  if (plan.snapshot && typeof plan.snapshot === 'object' && !Array.isArray(plan.snapshot)) {
+    for (const [guestId, size] of Object.entries(plan.snapshot as Record<string, unknown>)) {
+      const held = Number(size);
+      if (Number.isFinite(held) && held > 0 && held <= 40) snapshot[guestId] = Math.round(held);
+    }
+  }
+
+  return {
+    tables,
+    items,
+    snapshot,
+    finalized: plan.finalized === true,
+    updatedAt: typeof plan.updatedAt === 'string' ? plan.updatedAt : undefined,
   };
 }
 
