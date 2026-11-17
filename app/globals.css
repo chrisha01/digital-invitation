@@ -240,6 +240,14 @@ button {
   cursor: default;
 }
 
+/* Guest row actions sit together: merge next to remove. */
+.row-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .input {
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -4374,7 +4382,7 @@ input[type='range'] {
 
   /* ---- Guest list ---- */
   .guest-table.cards.guest-list-table tr {
-    padding: 14px 52px 14px 14px;
+    padding: 14px 88px 14px 14px;
   }
 
   .guest-table.cards.guest-list-table td:nth-child(1),
@@ -4403,6 +4411,17 @@ input[type='range'] {
     position: absolute;
     top: 10px;
     right: 10px;
+  }
+
+  /* Merge and remove stack in the corner so the name keeps its own line. */
+  .guest-table.cards.guest-list-table .row-buttons {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .guest-table.cards.guest-list-table .row-buttons .btn {
+    padding: 4px 8px;
   }
 
   .guest-table.cards.guest-list-table .guest-name,
@@ -4463,6 +4482,29 @@ input[type='range'] {
   align-items: center;
   gap: 10px;
   margin: 0 0 14px;
+}
+
+/* Choosing which of two duplicate rows to keep. */
+.merge-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--paper-2);
+}
+
+.merge-panel select {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.merge-panel .merge-note {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .guest-search {

@@ -222,6 +222,31 @@ export function resizeTable(plan: SeatingPlan, tableId: string, seats: number): 
   };
 }
 
+/**
+ * After two rows for one guest are merged: the removed guest's chair goes to
+ * the one who remains, so it is not left as a seat nobody can take. A guest who
+ * is already seated keeps their own chair and the spare one is simply freed.
+ */
+export function handOverSeat(plan: SeatingPlan, fromId: string, intoId: string): SeatingPlan {
+  const seated = plan.tables.some((table) => table.chairs?.includes(intoId));
+  const replacement = seated ? null : intoId;
+  const snapshot = { ...(plan.snapshot ?? {}) };
+  if (!seated && snapshot[fromId] !== undefined) snapshot[intoId] = snapshot[fromId];
+  delete snapshot[fromId];
+  return {
+    ...plan,
+    tables: plan.tables.map((table) =>
+      Array.isArray(table.chairs)
+        ? {
+            ...table,
+            chairs: table.chairs.map((chair) => (chair === fromId ? replacement : chair)),
+          }
+        : table,
+    ),
+    snapshot,
+  };
+}
+
 export function findSeat(plan: SeatingPlan | undefined, guestId: string): { table: SeatTable; chair: number } | null {
   for (const table of plan?.tables ?? []) {
     const chair = table.chairs?.findIndex((id) => id === guestId) ?? -1;

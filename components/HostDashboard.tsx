@@ -112,6 +112,8 @@ export default function HostDashboard({
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [guestQuery, setGuestQuery] = useState('');
   const [guestStatus, setGuestStatus] = useState<'all' | RsvpStatus>('all');
+  const [mergeFrom, setMergeFrom] = useState<Guest | null>(null);
+  const [mergeIntoId, setMergeIntoId] = useState('');
   const [reminders, setReminders] = useState<Reminder[]>(inv.reminders ?? []);
   const [reminderAt, setReminderAt] = useState(tomorrowMorning);
   const [reminderAudience, setReminderAudience] = useState<ReminderAudience>('pending');
@@ -381,6 +383,35 @@ export default function HostDashboard({
       return;
     }
     setGuests(data.guests);
+    router.refresh();
+  }
+
+  /** Opens the merge panel for a row, with the likely duplicate already chosen. */
+  function startMerge(guest: Guest) {
+    const name = guest.name.trim().toLowerCase();
+    const duplicate = guests.find(
+      (other) =>
+        other.id !== guest.id &&
+        ((guest.email && other.email.toLowerCase() === guest.email.toLowerCase()) ||
+          other.name.trim().toLowerCase() === name),
+    );
+    setMergeFrom(guest);
+    setMergeIntoId(duplicate?.id ?? '');
+  }
+
+  async function mergeSelected() {
+    const from = mergeFrom;
+    if (!from || !mergeIntoId) return;
+    const data = await call(`/api/invitations/${inv.id}/guests/merge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fromId: from.id, intoId: mergeIntoId }),
+    });
+    if (!data?.guests) return;
+    setGuests(data.guests);
+    setMergeFrom(null);
+    setMergeIntoId('');
+    // The removed row's personal link goes away with it.
     router.refresh();
   }
 
@@ -883,6 +914,50 @@ export default function HostDashboard({
             ) : null}
           </div>
 
+          {mergeFrom ? (
+            <div className="merge-panel no-print">
+              <span>
+                Merge <strong>{mergeFrom.name}</strong> into
+              </span>
+              <select
+                className="input"
+                aria-label="Guest to keep"
+                value={mergeIntoId}
+                onChange={(e) => setMergeIntoId(e.target.value)}
+              >
+                <option value="">Choose the guest to keep…</option>
+                {guests
+                  .filter((guest) => guest.id !== mergeFrom.id)
+                  .map((guest) => (
+                    <option key={guest.id} value={guest.id}>
+                      {guest.name} — {STATUS_LABEL[guest.status]}
+                      {guest.email ? ` — ${guest.email}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !mergeIntoId}
+                onClick={mergeSelected}
+              >
+                {busy ? 'Merging…' : 'Merge guests'}
+              </button>
+              <button
+                className="btn btn-ghost btn-small"
+                onClick={() => {
+                  setMergeFrom(null);
+                  setMergeIntoId('');
+                }}
+              >
+                Cancel
+              </button>
+              <p className="muted small merge-note">
+                Nothing is thrown away: notes, answers and check-in from both rows move onto the
+                guest you keep, and if both replied the later reply wins. The other row is removed.
+              </p>
+            </div>
+          ) : null}
+
           {filtering ? (
             <p className="guest-print-note">
               Guest list filtered — showing {visibleGuests.length} of {guests.length} guests
@@ -1043,14 +1118,24 @@ export default function HostDashboard({
                           </button>
                         </td>
                         <td className="row-remove">
-                          <button
-                            className="icon-btn"
-                            aria-label={`Remove ${guest.name}`}
-                            disabled={busy}
-                            onClick={() => removeGuest(guest)}
-                          >
-                            ×
-                          </button>
+                          <div className="row-buttons">
+                            <button
+                              className="btn btn-ghost btn-small"
+                              aria-label={`Merge ${guest.name} into another guest`}
+                              disabled={busy || guests.length < 2}
+                              onClick={() => startMerge(guest)}
+                            >
+                              Merge
+                            </button>
+                            <button
+                              className="icon-btn"
+                              aria-label={`Remove ${guest.name}`}
+                              disabled={busy}
+                              onClick={() => removeGuest(guest)}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
