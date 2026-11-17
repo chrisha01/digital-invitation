@@ -14,21 +14,29 @@ type MergeUndo = {
   from: Guest;
   into: Guest;
   index: number;
+  /** The plus-one rows the merge attached to the kept guest, by id. */
+  companions: string[];
   seating: SeatingPlan | null;
 };
 
-/** A seat plan the dashboard kept, normalised so nothing odd lands in the document. */
+/**
+ * A seat plan the dashboard kept, held to the same rules as a saved one: every
+ * table and area needs its id, and the size snapshot keeps only real counts.
+ */
 function planFromCopy(input: unknown): SeatingPlan | null {
-  if (!input || typeof input !== 'object') return null;
-  const plan = input as SeatingPlan;
-  if (!Array.isArray(plan.tables)) return null;
-  return resolveSeating({
-    ...plan,
-    tables: plan.tables.filter((table) => table && typeof table === 'object'),
-    items: (Array.isArray(plan.items) ? plan.items : []).filter(
-      (item) => item && typeof item === 'object',
-    ),
-  });
+  const plan = input as SeatingPlan | null;
+  if (!Array.isArray(plan?.tables)) return null;
+  const items = Array.isArray(plan.items) ? plan.items : [];
+  if ([...plan.tables, ...items].some((piece) => typeof piece?.id !== 'string' || !piece.id)) {
+    return null;
+  }
+
+  const snapshot: Record<string, number> = {};
+  for (const [guestId, size] of Object.entries(plan.snapshot ?? {})) {
+    const held = Math.round(Number(size));
+    if (held > 0 && held <= 40) snapshot[guestId] = held;
+  }
+  return resolveSeating({ ...plan, items, snapshot });
 }
 
 /**
@@ -36,8 +44,9 @@ function planFromCopy(input: unknown): SeatingPlan | null {
  * carries the other's reply, notes and check-in onto it. Only a host may do it:
  * a guest link can move its own reply, never another guest's row.
  *
- * The same endpoint takes a merge back: the dashboard holds the two rows and the
- * seat plan as they were, and posts them here when the undo is pressed.
+ * The same endpoint takes a merge back: the dashboard holds the two rows, the
+ * plus-ones the merge moved and the seat plan as they were, and posts them here
+ * when the undo is pressed.
  */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -51,7 +60,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     | {
         fromId?: string;
         intoId?: string;
-        undo?: { from?: Partial<Guest>; into?: Partial<Guest>; index?: number; seating?: unknown };
+        undo?: {
+          from?: Partial<Guest>;
+          into?: Partial<Guest>;
+          index?: number;
+          companions?: unknown;
+          seating?: unknown;
+        };
       }
     | null;
 
@@ -61,6 +76,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!from || !into) return NextResponse.json({ error: 'Nothing to undo.' }, { status: 400 });
     const index = Math.max(0, Math.floor(Number(body.undo.index) || 0));
     const plan = planFromCopy(body.undo.seating);
+    // A row that came back has its plus-ones back too, so the companions the
+    // merge gave the kept guest are returned to it rather than left behind.
+    const moved = new Set(
+      (Array.isArray(body.undo.companions) ? body.undo.companions : []).map((guestId) =>
+        String(guestId).slice(0, 80),
+      ),
+    );
 
     let restored = false;
     const updated = await mutateInvitation(id, (current) => {
@@ -68,8 +90,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       // The kept row is gone, or something already put the other row back:
       // restoring now would add a row this undo never took away.
       if (at < 0 || current.guests.some((guest) => guest.id === from.id)) return;
+      current.guests = current.guests.map((guest) =>
+        guest.companionOf === into.id && moved.has(guest.id)
+          ? { ...guest, companionOf: from.id }
+          : guest,
+      );
       current.guests[at] = into;
-      current.guests.splice(Math.min(index, current.guests.length), 0, from);
+      // The row returns to its old place in the list; splice holds the upper bound.
+      current.guests.splice(index, 0, from);
       if (plan) current.seating = plan;
       restored = true;
     });
@@ -100,6 +128,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       from,
       into,
       index: current.guests.findIndex((guest) => guest.id === fromId),
+      companions: current.guests
+        .filter((guest) => guest.companionOf === fromId)
+        .map((guest) => guest.id),
       seating: current.seating ?? null,
     };
     current.guests = guests;

@@ -32,11 +32,12 @@ const STATUS_LABEL: Record<RsvpStatus, string> = {
   maybe: 'Maybe',
 };
 
-/** The two rows and seat plan a merge replaced, as the server kept them. */
+/** The two rows, their plus-ones and the seat plan a merge replaced, as the server kept them. */
 type MergeUndo = {
   from: Guest;
   into: Guest;
   index: number;
+  companions: string[];
   seating?: SeatingPlan | null;
 };
 
