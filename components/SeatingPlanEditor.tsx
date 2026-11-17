@@ -7,6 +7,7 @@ import CopyFallback from './CopyFallback';
 import BrandMark from './BrandMark';
 import {
   autoSeat,
+  chairPoints,
   markSeated,
   markUnseated,
   newTable,
@@ -58,24 +59,6 @@ const VENUE_PRESETS: { label: string; shape: VenueShape; w: number; h: number }[
 type Selection = { kind: 'table' | 'item'; id: string } | null;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-/** Where each chair sits, as a percentage of the table's own box. */
-function chairPoints(table: SeatTable): { left: number; top: number }[] {
-  const { seats, shape } = table;
-  if (shape === 'long') {
-    const top = Math.ceil(seats / 2);
-    const bottom = seats - top;
-    return Array.from({ length: seats }, (_, index) =>
-      index < top
-        ? { left: ((index + 1) / (top + 1)) * 100, top: -6 }
-        : { left: ((index + 1 - top) / (bottom + 1)) * 100, top: 106 },
-    );
-  }
-  return Array.from({ length: seats }, (_, index) => {
-    const angle = ((-90 + (360 / seats) * index) * Math.PI) / 180;
-    return { left: 50 + 53 * Math.cos(angle), top: 50 + 53 * Math.sin(angle) };
-  });
-}
 
 function initials(name: string): string {
   const words = name.split(/\s+/).filter((word) => word && !/^[&+]?$/.test(word));

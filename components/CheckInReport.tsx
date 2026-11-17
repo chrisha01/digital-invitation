@@ -124,7 +124,7 @@ export default function CheckInReport({ inv }: { inv: Invitation }) {
             <span className="muted small">{households.size} households &amp; groups</span>
           </div>
           <div className="table-wrap">
-            <table className="guest-table">
+            <table className="guest-table report-table cards">
               <thead>
                 <tr>
                   <th>Household</th>
@@ -139,14 +139,14 @@ export default function CheckInReport({ inv }: { inv: Invitation }) {
                   .sort((a, b) => a[0].localeCompare(b[0]))
                   .map(([name, entry]) => (
                     <tr key={name}>
-                      <td>
+                      <td data-label="Household">
                         <strong>{name}</strong>
                         <div className="muted small">{entry.guests.join(' · ')}</div>
                       </td>
-                      <td>{entry.rows}</td>
-                      <td>{entry.confirmed}</td>
-                      <td>{entry.here}</td>
-                      <td>{entry.missing || '—'}</td>
+                      <td data-label="Rows">{entry.rows}</td>
+                      <td data-label="Confirmed">{entry.confirmed}</td>
+                      <td data-label="Arrived">{entry.here}</td>
+                      <td data-label="Missing">{entry.missing || '—'}</td>
                     </tr>
                   ))}
               </tbody>

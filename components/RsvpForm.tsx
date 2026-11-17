@@ -283,9 +283,7 @@ export default function RsvpForm({ inv, guest, onSaved }: Props) {
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      <button className="btn btn-primary btn-wide" disabled={busy}>
-        {busy ? 'Sending…' : 'Send reply'}
-      </button>
+      <button className="btn btn-primary btn-wide">Send reply</button>
     </form>
   );
 }

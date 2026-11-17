@@ -30,6 +30,15 @@ const STATUS_LABEL: Record<RsvpStatus, string> = {
   maybe: 'Maybe',
 };
 
+/** Chips above the guest list: "all" or one RSVP status. */
+const GUEST_FILTERS = [
+  ['all', 'All'],
+  ['yes', 'Attending'],
+  ['maybe', 'Maybe'],
+  ['invited', 'Awaiting'],
+  ['no', 'Declined'],
+] as const;
+
 const AUDIENCE_LABEL: Record<ReminderAudience, string> = {
   pending: 'No reply yet',
   maybe: 'Maybe',
@@ -94,6 +103,10 @@ export default function HostDashboard({
   const [coHostBusy, setCoHostBusy] = useState(false);
   const [coHostError, setCoHostError] = useState<string | null>(null);
   const [household, setHousehold] = useState('');
+  const [undoGuest, setUndoGuest] = useState<Guest | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [guestQuery, setGuestQuery] = useState('');
+  const [guestStatus, setGuestStatus] = useState<'all' | RsvpStatus>('all');
   const [reminders, setReminders] = useState<Reminder[]>(inv.reminders ?? []);
   const [reminderAt, setReminderAt] = useState(tomorrowMorning);
   const [reminderAudience, setReminderAudience] = useState<ReminderAudience>('pending');
@@ -106,12 +119,42 @@ export default function HostDashboard({
     setOrigin(window.location.origin);
   }, []);
 
+  // The undo offer clears itself, and clears its timer if the toast is closed.
+  useEffect(() => {
+    if (!undoGuest) return;
+    const timer = window.setTimeout(() => setUndoGuest(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undoGuest]);
+
   const yes = guests.filter((g) => g.status === 'yes');
   const no = guests.filter((g) => g.status === 'no');
   const pending = guests.filter((g) => g.status === 'invited');
   const headcount = yes.reduce((sum, g) => sum + Math.max(1, g.adults + g.children, 1 + g.plusOnes), 0);
   const answered = guests.filter((g) => g.status !== 'invited').length;
   const sharePath = `/i/${inv.id}`;
+
+  const guestFilter = guestQuery.trim().toLowerCase();
+  const filtering = guestFilter.length > 0 || guestStatus !== 'all';
+  const visibleGuests = guests.filter((g) => {
+    if (guestStatus !== 'all' && g.status !== guestStatus) return false;
+    if (!guestFilter) return true;
+    return [g.name, g.email, g.household, g.tag, g.phone]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(guestFilter));
+  });
+
+  // What the print-only line says about a partial list.
+  const filterSummary = [
+    guestStatus !== 'all' ? `reply: ${STATUS_LABEL[guestStatus]}` : null,
+    guestFilter ? `search: “${guestQuery.trim()}”` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  function clearGuestFilter() {
+    setGuestQuery('');
+    setGuestStatus('all');
+  }
   const checkedIn = guests.filter((g) => g.checkedInAt);
   const checkedInHeads = checkedIn.reduce(
     (sum, g) => sum + Math.max(1, g.adults + g.children, 1 + g.plusOnes),
@@ -178,19 +221,20 @@ export default function HostDashboard({
     [guests],
   );
 
-  async function call(url: string, init: RequestInit) {
+  /** quiet: the caller reports the failure itself, next to what it was doing. */
+  async function call(url: string, init: RequestInit, quiet = false) {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(url, init);
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error ?? 'That did not save.');
+        if (!quiet) setError(data?.error ?? 'That did not save.');
         return null;
       }
       return data;
     } catch {
-      setError('Network problem — please try again.');
+      if (!quiet) setError('Network problem — please try again.');
       return null;
     } finally {
       setBusy(false);
@@ -291,11 +335,44 @@ export default function HostDashboard({
     if (data?.guests) setGuests(data.guests);
   }
 
-  async function removeGuest(guestId: string) {
-    const data = await call(`/api/invitations/${inv.id}/guests?guestId=${encodeURIComponent(guestId)}`, {
-      method: 'DELETE',
-    });
-    if (data?.guests) setGuests(data.guests);
+  async function removeGuest(guest: Guest) {
+    setRemoveError(null);
+    const data = await call(
+      `/api/invitations/${inv.id}/guests?guestId=${encodeURIComponent(guest.id)}`,
+      { method: 'DELETE' },
+      true,
+    );
+    // Only a list that no longer holds them counts as a delete: a failed call and a
+    // no-op success both leave the guest in place, and neither may offer an undo.
+    if (!data?.guests || data.guests.some((candidate: Guest) => candidate.id === guest.id)) {
+      setRemoveError(`${guest.name} is still on the list — nothing was deleted.`);
+      return;
+    }
+    setGuests(data.guests);
+    setUndoGuest(guest);
+  }
+
+  async function undoRemove() {
+    const guest = undoGuest;
+    if (!guest) return;
+    setUndoGuest(null);
+    setRemoveError(null);
+    const data = await call(
+      `/api/invitations/${inv.id}/guests`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ restore: guest }),
+      },
+      true,
+    );
+    if (!data?.guests) {
+      // They are still deleted, so hand the offer back rather than lose it.
+      setRemoveError(`Could not put ${guest.name} back. Undo is still available.`);
+      setUndoGuest(guest);
+      return;
+    }
+    setGuests(data.guests);
   }
 
   async function copy(text: string, key: string) {
@@ -324,7 +401,7 @@ export default function HostDashboard({
       'Checked in',
       'Message',
     ];
-    const rows = guests.map((g) => [
+    const rows = visibleGuests.map((g) => [
       g.name,
       g.household ?? '',
       g.email,
@@ -648,7 +725,7 @@ export default function HostDashboard({
           )}
         </section>
 
-        <section className="host-card">
+        <section className="host-card no-print">
           <div className="panel-head">
             <h2 className="panel-title">Who can manage this</h2>
             <span className="muted small">{isOwner ? 'You are the owner' : 'You are a co-host'}</span>
@@ -704,8 +781,19 @@ export default function HostDashboard({
           <div className="panel-head">
             <h2 className="panel-title">Guest list</h2>
             <div className="row-actions">
-              <button className="btn btn-ghost btn-small" onClick={exportCsv} disabled={!guests.length}>
-                Export CSV
+              <button
+                className="btn btn-ghost btn-small"
+                onClick={() => window.print()}
+                disabled={!visibleGuests.length}
+              >
+                Print list
+              </button>
+              <button
+                className="btn btn-ghost btn-small"
+                onClick={exportCsv}
+                disabled={!visibleGuests.length}
+              >
+                Export CSV{filtering ? ` (${visibleGuests.length})` : ''}
               </button>
               <button
                 className="btn btn-ghost btn-small"
@@ -748,14 +836,63 @@ export default function HostDashboard({
             </button>
           </form>
 
+          {removeError ? (
+            <p className="form-error" role="alert">
+              {removeError}
+            </p>
+          ) : null}
+
+          <div className="guest-tools">
+            <input
+              className="input guest-search"
+              type="search"
+              value={guestQuery}
+              onChange={(e) => setGuestQuery(e.target.value)}
+              placeholder="Search name, household, email or phone"
+              aria-label="Search guests"
+            />
+            <div className="seg guest-filter" role="group" aria-label="Filter by reply">
+              {GUEST_FILTERS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={guestStatus === value ? 'is-on' : ''}
+                  aria-pressed={guestStatus === value}
+                  onClick={() => setGuestStatus(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {filtering ? (
+              <span className="muted small guest-filter-count">
+                {visibleGuests.length} of {guests.length} shown
+                <button type="button" className="btn btn-ghost btn-small" onClick={clearGuestFilter}>
+                  Clear
+                </button>
+              </span>
+            ) : null}
+          </div>
+
+          {filtering ? (
+            <p className="guest-print-note">
+              Guest list filtered — showing {visibleGuests.length} of {guests.length} guests
+              {filterSummary ? ` (${filterSummary})` : null}.
+            </p>
+          ) : null}
+
           {guests.length === 0 ? (
             <p className="panel-note">
               No guests yet. Add names here, then send each person their link — or share one link with
               everyone and let them reply.
             </p>
+          ) : !visibleGuests.length ? (
+            <p className="panel-note">
+              No guests match that search. Try another name, or clear the filter to see everyone.
+            </p>
           ) : (
             <div className="table-wrap">
-              <table className="guest-table">
+              <table className="guest-table guest-list-table cards">
                 <thead>
                   <tr>
                     <th>Guest</th>
@@ -769,11 +906,18 @@ export default function HostDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {guests.map((guest) => {
+                  {visibleGuests.map((guest) => {
                     const entries = Object.entries(guest.answers).filter(([, value]) => value);
+                    const hasDetails = Boolean(
+                      entries.length ||
+                        guest.message ||
+                        guest.dietary ||
+                        guest.accessibility ||
+                        guest.checkedInAt,
+                    );
                     return (
                       <tr key={guest.id}>
-                        <td>
+                        <td data-label="Guest">
                           <input
                             className="input guest-name"
                             defaultValue={guest.name}
@@ -798,7 +942,7 @@ export default function HostDashboard({
                             </div>
                           ) : null}
                         </td>
-                        <td>
+                        <td data-label="Household">
                           <input
                             className="input guest-name"
                             defaultValue={guest.household ?? ''}
@@ -815,8 +959,8 @@ export default function HostDashboard({
                             }}
                           />
                         </td>
-                        <td>{guest.tag || '—'}</td>
-                        <td>
+                        <td data-label="Group">{guest.tag || '—'}</td>
+                        <td data-label="Reply">
                           <select
                             className={`input status-select is-${guest.status}`}
                             value={guest.status}
@@ -829,12 +973,15 @@ export default function HostDashboard({
                             ))}
                           </select>
                         </td>
-                        <td>
+                        <td data-label="Party">
                           {guest.status === 'yes'
                             ? `${Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes)}`
                             : '—'}
                         </td>
-                        <td className="answers-cell">
+                        <td
+                          className={`answers-cell${hasDetails ? '' : ' is-empty'}`}
+                          data-label="Answers"
+                        >
                           {entries.map(([questionId, value]) => {
                             const question = inv.settings.questions.find((q) => q.id === questionId);
                             return (
@@ -863,11 +1010,15 @@ export default function HostDashboard({
                             </div>
                           ) : null}
                           {guest.message ? <div className="answer-line">“{guest.message}”</div> : null}
-                          {!entries.length && !guest.message && !guest.dietary && !guest.accessibility ? (
+                          {!entries.length &&
+                          !guest.message &&
+                          !guest.dietary &&
+                          !guest.accessibility &&
+                          !guest.checkedInAt ? (
                             <span className="muted">—</span>
                           ) : null}
                         </td>
-                        <td>
+                        <td data-label="Link">
                           <button
                             className="btn btn-ghost btn-small"
                             onClick={() =>
@@ -880,11 +1031,12 @@ export default function HostDashboard({
                             {copied === guest.id ? 'Copied' : 'Personal link'}
                           </button>
                         </td>
-                        <td>
+                        <td className="row-remove">
                           <button
                             className="icon-btn"
                             aria-label={`Remove ${guest.name}`}
-                            onClick={() => removeGuest(guest.id)}
+                            disabled={busy}
+                            onClick={() => removeGuest(guest)}
                           >
                             ×
                           </button>
@@ -898,7 +1050,7 @@ export default function HostDashboard({
           )}
         </section>
 
-        <section className="host-card">
+        <section className="host-card no-print">
           <div className="panel-head">
             <h2 className="panel-title">RSVP reminders</h2>
             <span className="muted small">{outstanding} still to reply</span>
@@ -1005,7 +1157,7 @@ export default function HostDashboard({
           )}
         </section>
 
-        <section className="host-card">
+        <section className="host-card no-print">
           <div className="panel-head">
             <h2 className="panel-title">Message guests</h2>
             <div className="seg">
@@ -1031,7 +1183,13 @@ export default function HostDashboard({
           {!sms.configured ? (
             <p className="text-setup">
               Sending is off until an SMS provider is connected. Add{' '}
-              <code>{sms.missing.join('</code>, <code>')}</code> to <code>.env</code> and restart — the
+              {sms.missing.map((key, index) => (
+                <span key={key}>
+                  {index > 0 ? ', ' : null}
+                  <code>{key}</code>
+                </span>
+              ))}{' '}
+              to <code>.env</code> and restart — the
               message and audience you pick here will go through it.
             </p>
           ) : null}
@@ -1130,7 +1288,13 @@ export default function HostDashboard({
               {!mail.configured ? (
                 <p className="text-setup">
                   Sending is off until an email provider is connected. Add{' '}
-                  <code>{mail.missing.join('</code>, <code>')}</code> to <code>.env</code> and
+                  {mail.missing.map((key, index) => (
+                  <span key={key}>
+                    {index > 0 ? ', ' : null}
+                    <code>{key}</code>
+                  </span>
+                ))}{' '}
+                to <code>.env</code> and
                   restart — the subject, message and audience you pick here will go through it.
                 </p>
               ) : null}
@@ -1246,7 +1410,7 @@ export default function HostDashboard({
         </section>
 
         {answerLines.length ? (
-          <section className="host-card">
+          <section className="host-card no-print">
             <h2 className="panel-title">Notes from guests</h2>
             {answerLines.map(({ guest, entries }) => (
               <div key={guest.id} className="note-line">
@@ -1266,6 +1430,17 @@ export default function HostDashboard({
           </section>
         ) : null}
       </main>
+
+      {undoGuest ? (
+        <div className="undo-toast" role="status">
+          <span>
+            Removed {undoGuest.name}
+          </span>
+          <button type="button" onClick={undoRemove}>
+            Undo
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3,26 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export default function SignOutButton() {
+export default function SignOutButton({ next = '/' }: { next?: string }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
   return (
     <button
       className="btn btn-ghost btn-small"
-      disabled={busy}
       onClick={async () => {
-        setBusy(true);
-        try {
-          await fetch('/api/auth/signout', { method: 'POST' });
-        } finally {
-          router.replace('/');
-          router.refresh();
-          setBusy(false);
-        }
+        await fetch('/api/auth/signout', { method: 'POST' });
+        router.replace(next);
+        router.refresh();
       }}
     >
-      {busy ? 'Signing out…' : 'Sign out'}
+      Sign out
     </button>
   );
 }

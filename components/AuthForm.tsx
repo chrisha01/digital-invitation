@@ -11,12 +11,10 @@ export default function AuthForm({ next }: { next: string }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/auth/${mode}`, {
@@ -33,8 +31,6 @@ export default function AuthForm({ next }: { next: string }) {
       }
     } catch {
       setError('Network problem — please try again.');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -119,8 +115,8 @@ export default function AuthForm({ next }: { next: string }) {
         </a>
       ) : null}
 
-      <button className="btn btn-primary btn-wide" disabled={busy}>
-        {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+      <button className="btn btn-primary btn-wide">
+        {mode === 'signin' ? 'Sign in' : 'Create account'}
       </button>
     </form>
   );

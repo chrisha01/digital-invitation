@@ -1,29 +1,14 @@
 /**
- * The Gatherly mark: a wax-seal ring broken for the G's opening, with the
- * crossbar drawn toward the centre. Sits inside an element styled `.brand`,
- * so it inherits that element's type size and colour.
+ * The Gatherly mark: a wax-seal disc stamped with an italic serif G, sitting
+ * beside the wordmark. Sits inside an element styled `.brand`, so the disc
+ * takes its size from `.brand-mark` and its ink from the theme.
  */
 export default function BrandMark() {
   return (
     <>
-      <svg
-        className="brand-mark"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="7.6"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeDasharray="43.77 3.98"
-        />
-        <path d="M15.4 12h4.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </svg>
+      <span className="brand-mark" aria-hidden="true">
+        g
+      </span>
       <span className="brand-word">Gatherly</span>
     </>
   );

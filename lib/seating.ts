@@ -6,6 +6,24 @@ export function partySize(guest: Guest): number {
   return Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes);
 }
 
+/** Where each chair sits, as a percentage of the table's own box. */
+export function chairPoints(table: SeatTable): { left: number; top: number }[] {
+  const { seats, shape } = table;
+  if (shape === 'long') {
+    const top = Math.ceil(seats / 2);
+    const bottom = seats - top;
+    return Array.from({ length: seats }, (_, index) =>
+      index < top
+        ? { left: ((index + 1) / (top + 1)) * 100, top: -6 }
+        : { left: ((index + 1 - top) / (bottom + 1)) * 100, top: 106 },
+    );
+  }
+  return Array.from({ length: seats }, (_, index) => {
+    const angle = ((-90 + (360 / seats) * index) * Math.PI) / 180;
+    return { left: 50 + 53 * Math.cos(angle), top: 50 + 53 * Math.sin(angle) };
+  });
+}
+
 export const MIN_SEATS = 2;
 export const MAX_SEATS = 20;
 export const MAX_SPARE = 2;

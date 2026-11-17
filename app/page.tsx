@@ -85,6 +85,7 @@ export default async function HomePage({
           <a href="#designs">Designs</a>
           <a href="#how">How it works</a>
           {saved.length ? <a href="#yours">Your invitations</a> : null}
+          <Link href="/app">Try the app</Link>
           {user ? (
             <>
               <span className="muted small">{user.name}</span>
@@ -125,6 +126,10 @@ export default async function HomePage({
               Browse the designs
             </a>
           </div>
+          <Link className="hero-app" href="/app">
+            <span className="hero-app-dot" aria-hidden />
+            Try the app experience — invitations, guests and replies in your pocket
+          </Link>
         </div>
 
         <div className="hero-art" aria-hidden="true">

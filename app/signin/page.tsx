@@ -11,12 +11,12 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const user = await currentUser();
-  if (user) redirect('/');
-
   const { next } = await searchParams;
   // Only same-site paths, so a link cannot bounce someone to another host.
   const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+
+  const user = await currentUser();
+  if (user) redirect(target);
 
   return (
     <div className="auth-shell">

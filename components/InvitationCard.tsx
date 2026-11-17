@@ -1,6 +1,11 @@
 'use client';
 
-import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import CardDrift from './CardDrift';
 import { getDesign } from '@/lib/designs';
 import { Motif } from '@/lib/motifs';
@@ -16,7 +21,13 @@ type Props = {
   onSelectLayer?: (id: string) => void;
   onLayerChange?: (id: string, patch: Partial<TextLayer>) => void;
   onPortraitMove?: (x: number, y: number) => void;
+  onPortraitClick?: () => void;
+  onLayerClick?: (id: string) => void;
+  onPhotoClick?: () => void;
+  onCardClick?: () => void;
   className?: string;
+  /** Show the centre crosshair while a line is being dragged, and snap to it. */
+  guides?: boolean;
 };
 
 const borderStyles: Record<string, CSSProperties> = {
@@ -33,9 +44,15 @@ export default function InvitationCard({
   onSelectLayer,
   onLayerChange,
   onPortraitMove,
+  onPortraitClick,
+  onLayerClick,
+  onPhotoClick,
+  onCardClick,
   className = '',
+  guides = false,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [guide, setGuide] = useState<{ v: boolean; h: boolean } | null>(null);
   const drag = useRef<{
     id: string;
     startX: number;
@@ -44,6 +61,8 @@ export default function InvitationCard({
     y: number;
     w: number;
     h: number;
+    layerW: number;
+    layerH: number;
   } | null>(null);
 
   const { card } = inv;
@@ -83,6 +102,7 @@ export default function InvitationCard({
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
+    const layerRect = e.currentTarget.getBoundingClientRect();
     drag.current = {
       id: layer.id,
       startX: e.clientX,
@@ -91,19 +111,35 @@ export default function InvitationCard({
       y: layer.y,
       w: rect.width,
       h: rect.height,
+      layerW: (layerRect.width / rect.width) * 100,
+      layerH: (layerRect.height / rect.height) * 100,
     };
+    let dragged = false;
     const move = (ev: globalThis.PointerEvent) => {
       const d = drag.current;
       if (!d) return;
+      // A plain click selects the line; only a real drag nudges it.
+      if (!dragged && Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) < 3) return;
+      dragged = true;
       const dx = ((ev.clientX - d.startX) / d.w) * 100;
       const dy = ((ev.clientY - d.startY) / d.h) * 100;
-      onLayerChange(d.id, {
-        x: clamp(round(d.x + dx), -30, 100),
-        y: clamp(round(d.y + dy), -5, 99),
-      });
+      let x = clamp(round(d.x + dx), -30, 100);
+      let y = clamp(round(d.y + dy), -5, 99);
+
+      // Centre guides: when a line's own centre comes near the card's centre,
+      // pull it the last few tenths of a percent and flag the guide as snapped.
+      const snapDistance = 1.8;
+      const centredX = Math.abs(x + d.layerW / 2 - 50) <= snapDistance;
+      const centredY = Math.abs(y + d.layerH / 2 - 50) <= snapDistance;
+      if (guides && centredX) x = clamp(round(50 - d.layerW / 2), -30, 100);
+      if (guides && centredY) y = clamp(round(50 - d.layerH / 2), -5, 99);
+      setGuide(guides ? { v: centredX, h: centredY } : null);
+
+      onLayerChange(d.id, { x, y });
     };
     const up = () => {
       drag.current = null;
+      setGuide(null);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
@@ -123,18 +159,31 @@ export default function InvitationCard({
     if (!editable || !onPortraitMove) return;
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
-    e.preventDefault();
-    onPortraitMove(
-      clamp(round(((e.clientX - rect.left) / rect.width) * 100), 0, 100),
-      clamp(round(((e.clientY - rect.top) / rect.height) * 100), 0, 100),
-    );
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragged = false;
+    const place = (cx: number, cy: number) => {
+      let x = clamp(round(((cx - rect.left) / rect.width) * 100), 0, 100);
+      let y = clamp(round(((cy - rect.top) / rect.height) * 100), 0, 100);
+      // The portrait is placed by its centre, so the card's centre is 50% on
+      // both axes. Snap it just like a text line, with the same guides.
+      const snapDistance = 1.8;
+      const centredX = guides && Math.abs(x - 50) <= snapDistance;
+      const centredY = guides && Math.abs(y - 50) <= snapDistance;
+      if (centredX) x = 50;
+      if (centredY) y = 50;
+      setGuide(guides ? { v: centredX, h: centredY } : null);
+      onPortraitMove(x, y);
+    };
     const move = (ev: globalThis.PointerEvent) => {
-      onPortraitMove(
-        clamp(round(((ev.clientX - rect.left) / rect.width) * 100), 0, 100),
-        clamp(round(((ev.clientY - rect.top) / rect.height) * 100), 0, 100),
-      );
+      // A plain click keeps the portrait where it is; only a real drag moves it.
+      if (!dragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      dragged = true;
+      place(ev.clientX, ev.clientY);
     };
     const up = () => {
+      drag.current = null;
+      setGuide(null);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
@@ -148,6 +197,10 @@ export default function InvitationCard({
       className={`inv-card ${className}`}
       style={style}
       data-editable={editable || undefined}
+      onClick={(e) => {
+        // Only clicks on the paper itself; text lines and the portrait stop their own.
+        if (e.target === e.currentTarget) onCardClick?.();
+      }}
     >
       {card.photo ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -157,6 +210,10 @@ export default function InvitationCard({
           className="inv-photo"
           style={{ opacity: card.photoOpacity }}
           draggable={false}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPhotoClick?.();
+          }}
         />
       ) : null}
 
@@ -165,6 +222,10 @@ export default function InvitationCard({
           className={`inv-portrait${placed ? ' is-placed' : ''}`}
           data-shape={portraitShape}
           onPointerDown={beginPortraitDrag}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPortraitClick?.();
+          }}
           style={{
             left: `${portraitLeft}%`,
             top: `${portraitTop}%`,
@@ -182,6 +243,17 @@ export default function InvitationCard({
 
       <CardDrift kind={drift} ink={card.ink} accent={card.accent} />
 
+      {editable && guides ? (
+        <div
+          className={`inv-guides${guide ? ' is-dragging' : ''}`}
+          style={{ pointerEvents: 'none' }}
+          aria-hidden
+        >
+          <span className={`inv-guide is-v${guide?.v ? ' is-snapped' : ''}`} />
+          <span className={`inv-guide is-h${guide?.h ? ' is-snapped' : ''}`} />
+        </div>
+      ) : null}
+
       {card.layers
         .filter((l) => l.visible)
         .map((layer) => (
@@ -195,6 +267,10 @@ export default function InvitationCard({
               .filter(Boolean)
               .join(' ')}
             onPointerDown={(e) => beginDrag(e, layer)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLayerClick?.(layer.id);
+            }}
             style={{
               left: `${layer.x}%`,
               top: `${layer.y}%`,

@@ -11,14 +11,13 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
   const [password, setPassword] = useState('');
   const [link, setLink] = useState<string | null>(null);
   const [requested, setRequested] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // busy state removed for instant button response
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const { copy: clipboardCopy, outcome: copyOutcome, clear: clearCopy } = useCopy();
 
   async function requestLink(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/auth/reset/request', {
@@ -35,14 +34,11 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
       }
     } catch {
       setError('Network problem — please try again.');
-    } finally {
-      setBusy(false);
     }
   }
 
   async function setNewPassword(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/auth/reset/confirm', {
@@ -59,8 +55,6 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
       }
     } catch {
       setError('Network problem — please try again.');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -83,8 +77,8 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
           <span className="field-hint">At least 8 characters.</span>
         </label>
         {error ? <p className="form-error">{error}</p> : null}
-        <button className="btn btn-primary btn-wide" disabled={busy}>
-          {busy ? 'Saving…' : 'Save password and sign in'}
+        <button className="btn btn-primary btn-wide">
+          Save password and sign in
         </button>
       </form>
     );
@@ -155,9 +149,9 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
         )
       ) : null}
 
-      <button className="btn btn-primary btn-wide" disabled={busy}>
-        {busy ? 'Working…' : 'Make reset link'}
-      </button>
+      <button className="btn btn-primary btn-wide" >
+        'Make reset link'
+        </button>
       <a className="muted small" href="/signin">
         Back to sign in
       </a>

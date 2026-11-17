@@ -1,7 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
   <rect width="24" height="24" rx="5.5" fill="#211d18" />
-  <g fill="none" stroke="#d9b478" stroke-width="1.9" stroke-linecap="round">
-    <circle cx="12" cy="12.2" r="7.2" stroke-dasharray="41.47 3.77" />
-    <path d="M15.3 12.2h3.6" />
-  </g>
+  <text
+    x="12"
+    y="11.4"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-style="italic"
+    font-size="15"
+    fill="#d9b478"
+  >g</text>
 </svg>

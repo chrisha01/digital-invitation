@@ -269,7 +269,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
                 placeholder="Paste a pass code, or type a name below"
                 aria-label="Pass code"
               />
-              <button className="btn btn-ghost" disabled={busy || !code.trim()}>
+              <button className="btn btn-ghost" disabled={!code.trim()}>
                 Check in
               </button>
             </form>
@@ -300,7 +300,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
           ) : null}
 
           <div className="table-wrap">
-            <table className="guest-table checkin-table">
+            <table className="guest-table checkin-table cards">
               <thead>
                 <tr>
                   <th>Guest</th>
@@ -314,17 +314,17 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
               <tbody>
                 {visible.map((guest) => (
                   <tr key={guest.id} className={guest.checkedInAt ? 'is-in' : ''}>
-                    <td>
+                    <td data-label="Guest">
                       <strong>{guest.name}</strong>
                       {guest.dietary ? <div className="muted small">Diet: {guest.dietary}</div> : null}
                       {guest.accessibility ? (
                         <div className="muted small">Access: {guest.accessibility}</div>
                       ) : null}
                     </td>
-                    <td>{guest.household || '—'}</td>
-                    <td>{STATUS_LABEL[guest.status]}</td>
-                    <td>{guest.status === 'yes' ? guestHeads(guest) : '—'}</td>
-                    <td>
+                    <td data-label="Household">{guest.household || '—'}</td>
+                    <td data-label="Reply">{STATUS_LABEL[guest.status]}</td>
+                    <td data-label="Party">{guest.status === 'yes' ? guestHeads(guest) : '—'}</td>
+                    <td data-label="Arrived">
                       {guest.checkedInAt ? (
                         <>
                           {new Date(guest.checkedInAt).toLocaleTimeString([], {
@@ -343,7 +343,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
                       {guest.checkedInAt ? (
                         <button
                           className="btn btn-ghost btn-small"
-                          disabled={busy}
+                          
                           onClick={() => submit({ guestId: guest.id, undo: true })}
                         >
                           Undo
@@ -351,7 +351,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
                       ) : (
                         <button
                           className="btn btn-primary btn-small"
-                          disabled={busy}
+                          
                           onClick={() => submit({ guestId: guest.id })}
                         >
                           Check in

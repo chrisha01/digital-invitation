@@ -273,8 +273,13 @@ export default function Editor({ initial }: { initial: Invitation }) {
     initial.card.layers.find((l) => l.name === 'Hosts')?.id ?? initial.card.layers[0]?.id ?? null,
   );
   const [view, setView] = useState<'card' | 'envelope'>('card');
+  const [guides, setGuides] = useState(true);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const mounted = useRef(false);
+  const portraitAnchor = useRef<HTMLDivElement>(null);
+  const textAnchor = useRef<HTMLDivElement>(null);
+  const photoAnchor = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
   // Keep the stage in step when a section is chosen programmatically (for
   // example selecting a text layer jumps to the Text panel).
@@ -510,7 +515,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
           ))}
         </nav>
 
-        <section className="panel">
+        <section className="panel" ref={panelRef}>
           {section === 'design' && (
             <div className="panel-body">
               <h2 className="panel-title">Design</h2>
@@ -598,6 +603,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                 </select>
               </Field>
 
+              <div ref={photoAnchor} />
               <div className="field">
                 <span className="field-label">Card photo</span>
                 {inv.card.photo ? (
@@ -648,6 +654,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                 ) : null}
               </div>
 
+              <div ref={portraitAnchor} />
               <Field
                 label="Portrait"
                 hint="A photo framed in a shape. Drag it on the card to place it."
@@ -789,6 +796,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                 ))}
               </div>
 
+              <div ref={textAnchor} />
               {selected ? (
                 <div className="inspector">
                   <Field label="Line name">
@@ -1716,16 +1724,31 @@ export default function Editor({ initial }: { initial: Invitation }) {
 
         <main className="stage">
           <div className="stage-tools">
-            <div className="seg">
-              <button className={view === 'card' ? 'is-on' : ''} onClick={() => setView('card')}>
-                Card
-              </button>
+            <div className="stage-tools-left">
+              <div className="seg">
+                <button
+                  className={view === 'card' ? 'is-on' : ''}
+                  onClick={() => setView('card')}
+                >
+                  Card
+                </button>
+                <button
+                  className={view === 'envelope' ? 'is-on' : ''}
+                  onClick={() => setView('envelope')}
+                  disabled={!inv.envelope.enabled}
+                >
+                  Envelope
+                </button>
+              </div>
               <button
-                className={view === 'envelope' ? 'is-on' : ''}
-                onClick={() => setView('envelope')}
-                disabled={!inv.envelope.enabled}
+                type="button"
+                className={`btn btn-ghost btn-small stage-guides${guides ? ' is-on' : ''}`}
+                onClick={() => setGuides((on) => !on)}
+                aria-pressed={guides}
+                disabled={view !== 'card'}
+                title="Show the card's centre guides while arranging lines"
               >
-                Envelope
+                Guides
               </button>
             </div>
             <span className="stage-hint">
@@ -1739,14 +1762,41 @@ export default function Editor({ initial }: { initial: Invitation }) {
           <div
             className={`stage-canvas ${view === 'envelope' ? 'is-envelope' : ''}`}
             style={backdropStyle(inv.backdrop)}
+            onClick={(e) => {
+              const el = e.target as HTMLElement;
+              if (el.closest('.inv-card, .env, .blocks-preview, .stage-duo')) return;
+              setSection('backdrop');
+              panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           >
             {view === 'card' ? (
               <div className={section === 'blocks' ? 'stage-duo' : 'stage-solo'}>
                 <InvitationCard
                   inv={inv}
                   editable
+                  guides={guides}
                   selectedLayerId={selectedId}
                   onSelectLayer={setSelectedId}
+                  onLayerClick={(id) => {
+                    setSelectedId(id);
+                    setSection('text');
+                    setView('card');
+                    setTimeout(() => {
+                      textAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 60);
+                  }}
+                  onPhotoClick={() => {
+                    setSection('design');
+                    setView('card');
+                    setTimeout(() => {
+                      photoAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 60);
+                  }}
+                  onCardClick={() => {
+                    setSection('color');
+                    setView('card');
+                    panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   onLayerChange={updateLayer}
                   onPortraitMove={(x, y) =>
                     set((draft) => {
@@ -1754,6 +1804,13 @@ export default function Editor({ initial }: { initial: Invitation }) {
                       draft.card.portraitY = y;
                     })
                   }
+                  onPortraitClick={() => {
+                    setSection('design');
+                    setView('card');
+                    setTimeout(() => {
+                      portraitAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 60);
+                  }}
                 />
                 {section === 'blocks' ? <BlocksPreview inv={inv} /> : null}
               </div>
@@ -1763,6 +1820,10 @@ export default function Editor({ initial }: { initial: Invitation }) {
                 designSlug={inv.designSlug}
                 guestName={inv.event.host}
                 monogram={inv.event.host}
+                onClick={() => {
+                  setSection('envelope');
+                  panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
               />
             )}
           </div>

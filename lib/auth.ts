@@ -153,16 +153,23 @@ export async function resetPassword(token: string, password: string): Promise<Se
       returning *`,
     [user.id, salt, digest(password, salt), changed],
   );
+  globalForAuth.__gatherlyUsers?.delete(user.id);
   return updated[0] ? toPublic(updated[0]) : null;
 }
 
-let cachedSecret: Promise<string> | null = null;
+// Kept on globalThis so `next dev` reloading this module does not throw the
+// cached key away and re-query the database on the next request.
+const globalForAuth = globalThis as typeof globalThis & {
+  __gatherlySecret?: Promise<string> | null;
+  __gatherlyUsers?: Map<string, { user: SessionUser | null; at: number }>;
+};
 
 /**
  * The signing key for session cookies, kept in the database so every instance
  * signs and verifies the same cookies and a restart cannot log everybody out.
  */
 export function sessionSecret(): Promise<string> {
+  const cachedSecret = globalForAuth.__gatherlySecret;
   if (cachedSecret) return cachedSecret;
 
   const pending = (async () => {
@@ -185,11 +192,29 @@ export function sessionSecret(): Promise<string> {
   })();
 
   // Never cache a failure: a database blip must not poison the secret for good.
-  cachedSecret = pending;
+  globalForAuth.__gatherlySecret = pending;
   pending.catch(() => {
-    cachedSecret = null;
+    globalForAuth.__gatherlySecret = null;
   });
   return pending;
+}
+
+/**
+ * Every request needs the signed-in user's row, and a remote database charges a
+ * full round trip for each query, so one lookup is reused briefly. A deleted
+ * account or a changed password therefore takes at most this long to bite; a
+ * reset clears the entry straight away.
+ */
+const USER_TTL_MS = 15_000;
+
+async function userForSession(id: string): Promise<SessionUser | null> {
+  const cache = (globalForAuth.__gatherlyUsers ??= new Map());
+  const hit = cache.get(id);
+  if (hit && Date.now() - hit.at < USER_TTL_MS) return hit.user;
+
+  const user = await getUserById(id);
+  cache.set(id, { user, at: Date.now() });
+  return user;
 }
 
 async function sign(payload: string): Promise<string> {
@@ -223,7 +248,7 @@ export async function readSession(token: string | undefined): Promise<SessionUse
       exp?: number;
     };
     if (!data.uid || !data.exp || Date.now() > data.exp) return null;
-    const user = await getUserById(data.uid);
+    const user = await userForSession(data.uid);
     // A reset changes the password version, which retires every older session.
     if (!user || user.sessionVersion !== data.sv) return null;
     return user;
@@ -237,10 +262,17 @@ export async function currentUser(): Promise<SessionUser | null> {
   return readSession(jar.get(SESSION_COOKIE)?.value);
 }
 
-/** Server pages: anyone signed out is sent to the sign-in page. */
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Server pages: anyone signed out is sent to the sign-in page. An optional
+ * `next` keeps them on the page they asked for instead of the web home, so the
+ * app returns to the app after signing in.
+ */
+export async function requireUser(next?: string): Promise<SessionUser> {
   const user = await currentUser();
-  if (!user) redirect('/signin');
+  if (!user) {
+    const target = next && next.startsWith('/') && !next.startsWith('//') ? next : undefined;
+    redirect(target ? `/signin?next=${encodeURIComponent(target)}` : '/signin');
+  }
   return user;
 }
 
