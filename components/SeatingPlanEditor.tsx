@@ -70,10 +70,31 @@ function initials(name: string): string {
 /** A chair can outlive its guest; this is what it says then. */
 const UNKNOWN_GUEST = 'Unknown guest';
 
+/** A refusal that asking again will not change: a 4xx, bar a timeout or a rate limit. */
+const permanent = (status: number) => status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+class SaveError extends Error {
+  status: number;
+
+  constructor(status: number) {
+    super(`Seating save failed: ${status}`);
+    this.status = status;
+  }
+}
+
+/** The exact body the seating API takes, so an untouched plan never re-saves. */
+const saveBody = (plan: SeatingPlan) =>
+  JSON.stringify({
+    tables: plan.tables,
+    items: plan.items ?? [],
+    snapshot: plan.snapshot ?? {},
+    finalized: Boolean(plan.finalized),
+  });
+
 export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   const byId = useMemo(() => new Map(inv.guests.map((guest) => [guest.id, guest])), [inv.guests]);
   const [plan, setPlan] = useState<SeatingPlan>(() => resolveSeating(inv.seating, byId));
-  const [status, setStatus] = useState<'saved' | 'saving' | 'retrying'>('saved');
+  const [status, setStatus] = useState<'saved' | 'saving' | 'retrying' | 'failed'>('saved');
   const [selected, setSelected] = useState<Selection>(
     inv.seating?.tables[0] ? { kind: 'table', id: inv.seating.tables[0].id } : null,
   );
@@ -96,7 +117,8 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   } | null>(null);
   const mounted = useRef(false);
   /** The newest plan this page holds, the one the server confirmed, and the one already flushed. */
-  const pending = useRef<string | null>(null);
+  const latest = useRef(plan);
+  latest.current = plan;
   const stored = useRef<string | null>(null);
   const flushed = useRef<string | null>(null);
 
@@ -169,25 +191,18 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
         body,
         keepalive,
       });
-      if (!res.ok) throw new Error(`Seating save failed: ${res.status}`);
+      if (!res.ok) throw new SaveError(res.status);
     },
     [inv.id],
   );
 
   useEffect(() => {
-    const body = JSON.stringify({
-      tables: plan.tables,
-      items,
-      snapshot: plan.snapshot ?? {},
-      finalized: Boolean(plan.finalized),
-    });
+    const body = saveBody(plan);
     if (!mounted.current) {
       mounted.current = true;
-      pending.current = body;
       stored.current = body;
       return;
     }
-    pending.current = body;
     setStatus('saving');
 
     let cancelled = false;
@@ -203,8 +218,14 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
         if (cancelled) return;
         stored.current = body;
         setStatus('saved');
-      } catch {
+      } catch (error) {
         if (cancelled) return;
+        // A 404, or a plan the server refuses, fails the same way however
+        // often we ask, so stop and say so instead of looping.
+        if (error instanceof SaveError && permanent(error.status)) {
+          setStatus('failed');
+          return;
+        }
         attempt += 1;
         setStatus('retrying');
         timer = setTimeout(send, Math.min(15000, 800 * 2 ** (attempt - 1)));
@@ -221,8 +242,8 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   // rather than waiting on the debounce that may never run.
   useEffect(() => {
     const flush = () => {
-      const body = pending.current;
-      if (!body || body === stored.current || flushed.current === body) return;
+      const body = saveBody(latest.current);
+      if (body === stored.current || flushed.current === body) return;
       flushed.current = body;
       void put(body, true)
         .then(() => {
@@ -241,6 +262,9 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
     return () => {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', flush);
+      // An in-app link unmounts the page without hiding it, so this is the
+      // last chance to send what the debounce has not.
+      flush();
     };
   }, [put]);
 
@@ -387,7 +411,9 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
               ? 'Saved'
               : status === 'saving'
                 ? 'Saving…'
-                : 'Not saved — retrying…'}
+                : status === 'retrying'
+                  ? 'Not saved — retrying…'
+                  : 'Not saved'}
           </span>
           <Link className="btn btn-ghost" href={`/host/${inv.id}`}>
             Guest list

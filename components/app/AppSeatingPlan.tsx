@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   autoSeat,
   chairPoints,
@@ -20,7 +20,10 @@ import {
 } from '@/lib/seating';
 import type { Invitation, SeatingPlan } from '@/lib/types';
 
-type Status = 'saved' | 'saving' | 'retrying';
+type Status = 'saved' | 'saving' | 'retrying' | 'failed';
+
+/** A refusal that asking again will not change: a 4xx, bar a timeout or a rate limit. */
+const permanent = (status: number) => status >= 400 && status < 500 && status !== 408 && status !== 429;
 
 function initials(name: string): string {
   const words = name.split(/\s+/).filter((word) => word && !/^[&+]?$/.test(word));
@@ -60,6 +63,8 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
   const lastSaved = useRef(payload(plan));
   const latest = useRef(plan);
   latest.current = plan;
+  /** The body already handed to a keepalive flush, so a hide and an unmount send it once. */
+  const flushed = useRef<string | null>(null);
 
   const attending = useMemo(
     () => initial.guests.filter((guest) => guest.status === 'yes'),
@@ -92,7 +97,7 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
       : 'Everyone who replied has a chair. Mark the plan final when you are happy.';
   }, [attending.length, plan.tables.length, plan.finalized, unseated.length, awaiting]);
 
-  async function save(data: SeatingPlan): Promise<boolean> {
+  async function save(data: SeatingPlan): Promise<'saved' | 'retry' | 'failed'> {
     const body = payload(data);
     setStatus('saving');
     try {
@@ -101,12 +106,21 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
         headers: { 'content-type': 'application/json' },
         body,
       });
-      if (res.ok) lastSaved.current = body;
-      setStatus(res.ok ? 'saved' : 'retrying');
-      return res.ok;
+      if (res.ok) {
+        lastSaved.current = body;
+        setStatus('saved');
+        return 'saved';
+      }
+      // A plan the server refuses will be refused again; say so instead of looping.
+      if (permanent(res.status)) {
+        setStatus('failed');
+        return 'failed';
+      }
+      setStatus('retrying');
+      return 'retry';
     } catch {
       setStatus('retrying');
-      return false;
+      return 'retry';
     }
   }
 
@@ -120,8 +134,8 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
     // A failed save keeps trying with a growing pause. The next edit starts a
     // fresh chain, so the retry always carries the newest plan.
     const run = async () => {
-      const ok = await save(plan);
-      if (cancelled || ok) return;
+      const outcome = await save(plan);
+      if (cancelled || outcome !== 'retry') return;
       attempt += 1;
       timer = setTimeout(run, Math.min(15000, 800 * 2 ** (attempt - 1)));
     };
@@ -133,19 +147,29 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan]);
 
-  // A hidden page is one the browser may kill: send what is unsent now.
-  useEffect(() => {
-    const flush = () => {
-      const body = payload(latest.current);
-      if (body === lastSaved.current) return;
-      lastSaved.current = body;
-      void fetch(`/api/invitations/${initial.id}/seating`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body,
-        keepalive: true,
+  // A hidden page, or one an in-app link is about to replace, is one the
+  // browser may discard: send what the debounce has not.
+  const flush = useCallback(() => {
+    const body = payload(latest.current);
+    if (body === lastSaved.current || flushed.current === body) return;
+    flushed.current = body;
+    void fetch(`/api/invitations/${initial.id}/seating`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body,
+      keepalive: true,
+    })
+      .then((res) => {
+        if (res.ok) lastSaved.current = body;
+        else flushed.current = null;
+      })
+      .catch(() => {
+        // Still unsent, so let the next hide or unmount try again.
+        flushed.current = null;
       });
-    };
+  }, [initial.id]);
+
+  useEffect(() => {
     const onHidden = () => {
       if (document.visibilityState === 'hidden') flush();
     };
@@ -155,23 +179,10 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', flush);
     };
-  }, [initial.id]);
+  }, [flush]);
 
-  // Leaving quickly must not drop the last change before the debounce fires.
-  useEffect(
-    () => () => {
-      const body = payload(latest.current);
-      if (body === lastSaved.current) return;
-      lastSaved.current = body;
-      void fetch(`/api/invitations/${initial.id}/seating`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body,
-        keepalive: true,
-      });
-    },
-    [initial.id],
-  );
+  // An in-app link unmounts the page without hiding it.
+  useEffect(() => () => flush(), [flush]);
 
   // Every edit reads the latest plan inside the updater, so two quick taps
   // (a chair added while a party is seated) cannot undo each other.
@@ -228,7 +239,9 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
             ? 'Saved'
             : status === 'saving'
               ? 'Saving…'
-              : 'Not saved — retrying…'}
+              : status === 'retrying'
+                ? 'Not saved — retrying…'
+                : 'Not saved'}
         </span>
       </header>
 
