@@ -73,7 +73,7 @@ const UNKNOWN_GUEST = 'Unknown guest';
 export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   const byId = useMemo(() => new Map(inv.guests.map((guest) => [guest.id, guest])), [inv.guests]);
   const [plan, setPlan] = useState<SeatingPlan>(() => resolveSeating(inv.seating, byId));
-  const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [status, setStatus] = useState<'saved' | 'saving' | 'retrying'>('saved');
   const [selected, setSelected] = useState<Selection>(
     inv.seating?.tables[0] ? { kind: 'table', id: inv.seating.tables[0].id } : null,
   );
@@ -95,6 +95,10 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
     h: number;
   } | null>(null);
   const mounted = useRef(false);
+  /** The newest plan this page holds, the one the server confirmed, and the one already flushed. */
+  const pending = useRef<string | null>(null);
+  const stored = useRef<string | null>(null);
+  const flushed = useRef<string | null>(null);
 
   const items = plan.items ?? [];
   const attending = useMemo(() => inv.guests.filter((guest) => guest.status === 'yes'), [inv.guests]);
@@ -157,31 +161,88 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
     };
   }, [plan.tables.length, plan.finalized, inv.guests, awaiting, unseated.length, drift.length]);
 
+  const put = useCallback(
+    async (body: string, keepalive = false) => {
+      const res = await fetch(`/api/invitations/${inv.id}/seating`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body,
+        keepalive,
+      });
+      if (!res.ok) throw new Error(`Seating save failed: ${res.status}`);
+    },
+    [inv.id],
+  );
+
   useEffect(() => {
+    const body = JSON.stringify({
+      tables: plan.tables,
+      items,
+      snapshot: plan.snapshot ?? {},
+      finalized: Boolean(plan.finalized),
+    });
     if (!mounted.current) {
       mounted.current = true;
+      pending.current = body;
+      stored.current = body;
       return;
     }
+    pending.current = body;
     setStatus('saving');
-    const timer = setTimeout(async () => {
+
+    let cancelled = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    // A failed save keeps trying with a growing pause, so an edit is never lost
+    // to one bad request. The next edit starts a fresh chain, which is what
+    // makes only the newest plan worth sending.
+    const send = async () => {
       try {
-        const res = await fetch(`/api/invitations/${inv.id}/seating`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            tables: plan.tables,
-            items,
-            snapshot: plan.snapshot ?? {},
-            finalized: Boolean(plan.finalized),
-          }),
-        });
-        setStatus(res.ok ? 'saved' : 'error');
+        await put(body);
+        if (cancelled) return;
+        stored.current = body;
+        setStatus('saved');
       } catch {
-        setStatus('error');
+        if (cancelled) return;
+        attempt += 1;
+        setStatus('retrying');
+        timer = setTimeout(send, Math.min(15000, 800 * 2 ** (attempt - 1)));
       }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [plan, items, inv.id]);
+    };
+    timer = setTimeout(send, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [plan, items, inv.id, put]);
+
+  // A hidden page is one the browser may kill, so send what is unsent now
+  // rather than waiting on the debounce that may never run.
+  useEffect(() => {
+    const flush = () => {
+      const body = pending.current;
+      if (!body || body === stored.current || flushed.current === body) return;
+      flushed.current = body;
+      void put(body, true)
+        .then(() => {
+          stored.current = body;
+        })
+        .catch(() => {
+          // Still unsent, so let the next hide try again.
+          flushed.current = null;
+        });
+    };
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [put]);
 
   const update = useCallback((mutate: (tables: SeatTable[]) => SeatTable[]) => {
     setPlan((prev) => ({ ...prev, tables: mutate(prev.tables) }));
@@ -322,7 +383,11 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
         </div>
         <div className="topbar-right">
           <span className={`save-state is-${status}`}>
-            {status === 'saved' ? 'Saved' : status === 'saving' ? 'Saving…' : 'Not saved'}
+            {status === 'saved'
+              ? 'Saved'
+              : status === 'saving'
+                ? 'Saving…'
+                : 'Not saved — retrying…'}
           </span>
           <Link className="btn btn-ghost" href={`/host/${inv.id}`}>
             Guest list

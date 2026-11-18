@@ -1091,7 +1091,7 @@ input[type='range'] {
   color: var(--muted);
 }
 
-.save-state.is-error {
+.save-state.is-retrying {
   color: var(--danger);
 }
 
@@ -3963,7 +3963,7 @@ input[type='range'] {
   color: var(--accent);
 }
 
-.m-edit-live.is-error {
+.m-edit-live.is-retrying {
   color: var(--danger);
 }
 

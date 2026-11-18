@@ -20,7 +20,7 @@ import {
 } from '@/lib/seating';
 import type { Invitation, SeatingPlan } from '@/lib/types';
 
-type Status = 'saved' | 'saving' | 'error';
+type Status = 'saved' | 'saving' | 'retrying';
 
 function initials(name: string): string {
   const words = name.split(/\s+/).filter((word) => word && !/^[&+]?$/.test(word));
@@ -102,10 +102,10 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
         body,
       });
       if (res.ok) lastSaved.current = body;
-      setStatus(res.ok ? 'saved' : 'error');
+      setStatus(res.ok ? 'saved' : 'retrying');
       return res.ok;
     } catch {
-      setStatus('error');
+      setStatus('retrying');
       return false;
     }
   }
@@ -113,10 +113,49 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
   useEffect(() => {
     const body = payload(plan);
     if (body === lastSaved.current) return;
-    const timer = setTimeout(() => void save(plan), 600);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    // A failed save keeps trying with a growing pause. The next edit starts a
+    // fresh chain, so the retry always carries the newest plan.
+    const run = async () => {
+      const ok = await save(plan);
+      if (cancelled || ok) return;
+      attempt += 1;
+      timer = setTimeout(run, Math.min(15000, 800 * 2 ** (attempt - 1)));
+    };
+    timer = setTimeout(run, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan]);
+
+  // A hidden page is one the browser may kill: send what is unsent now.
+  useEffect(() => {
+    const flush = () => {
+      const body = payload(latest.current);
+      if (body === lastSaved.current) return;
+      lastSaved.current = body;
+      void fetch(`/api/invitations/${initial.id}/seating`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body,
+        keepalive: true,
+      });
+    };
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [initial.id]);
 
   // Leaving quickly must not drop the last change before the debounce fires.
   useEffect(
@@ -185,7 +224,11 @@ export default function AppSeatingPlan({ initial }: { initial: Invitation }) {
           · {totalHeads} attending
         </p>
         <span className={`m-edit-live is-${status}`}>
-          {status === 'saved' ? 'Saved' : status === 'saving' ? 'Saving…' : 'Not saved'}
+          {status === 'saved'
+            ? 'Saved'
+            : status === 'saving'
+              ? 'Saving…'
+              : 'Not saved — retrying…'}
         </span>
       </header>
 
