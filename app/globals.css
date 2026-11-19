@@ -590,6 +590,13 @@ input[type='range'] {
   max-width: 20ch;
 }
 
+/* Narrow screens get the hero's tighter rhythm rather than the desktop air. */
+@media (max-width: 720px) {
+  .lost {
+    padding: 54px 0 64px;
+  }
+}
+
 /* A shortcut from the marketing page into the phone-sized app. */
 .hero-app {
   display: inline-flex;
@@ -4266,6 +4273,11 @@ input[type='range'] {
 
 .m-notfound .m-page {
   flex: 1;
+}
+
+/* Two lines of copy do not need the full width of a desktop frame. */
+.m-notfound .m-empty {
+  max-width: 520px;
 }
 
 .m-tabs {
