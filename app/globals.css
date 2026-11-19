@@ -77,10 +77,20 @@ button {
   padding: 4rem 1rem;
 }
 
-/* Inside the app frame it fills the scroll area rather than the whole window. */
-.m-scroll .loading-screen {
+/* Inside the app frame it fills the space it is given rather than the window. */
+.m-scroll .loading-screen,
+.m-nav-loading .loading-screen {
   flex: 1;
   min-height: 0;
+}
+
+/* Covers the app frame while a tapped link waits for its page. */
+.m-nav-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  background: var(--paper);
 }
 
 .loading-ring {
@@ -3488,6 +3498,7 @@ input[type='range'] {
 /* ---------- mobile app (/app) ---------- */
 
 .m-app {
+  position: relative;
   max-width: 560px;
   margin: 0 auto;
   height: 100dvh;

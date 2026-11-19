@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import AppTabs from '@/components/app/AppTabs';
+import NavIndicator from '@/components/app/NavIndicator';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export const metadata = {
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="m-app">
+      <NavIndicator />
       <div className="m-scroll">{children}</div>
       <AppTabs />
     </div>
