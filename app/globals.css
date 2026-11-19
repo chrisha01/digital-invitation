@@ -2403,6 +2403,50 @@ input[type='range'] {
   padding: 20px;
 }
 
+/* A dashboard link that no longer resolves keeps the host chrome but narrows to
+   the width of its copy, rather than stretching across the full board. */
+.host-lost {
+  max-width: 560px;
+  padding-top: 56px;
+}
+
+.host-lost .host-card {
+  padding: 28px 24px;
+}
+
+.host-lost-title {
+  font-size: 30px;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
+
+.host-lost-body {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 22px;
+}
+
+.host-lost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .host-lost {
+    padding-top: 30px;
+  }
+
+  .host-lost .host-card {
+    padding: 22px 18px;
+  }
+
+  .host-lost-title {
+    font-size: 25px;
+  }
+}
+
 .add-guest {
   display: grid;
   grid-template-columns: 1.1fr 1.2fr 1fr 0.8fr auto;

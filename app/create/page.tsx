@@ -12,8 +12,16 @@ export default async function CreatePage({
 }: {
   searchParams: Promise<{ id?: string; design?: string }>;
 }) {
-  const user = await requireUser();
   const { id, design } = await searchParams;
+  // Signing in again should land back on the invitation being edited, or on a
+  // new one in the design that was picked. The default route creates a fresh
+  // invitation, so a bare /create is a valid place to return to as well.
+  const next = id
+    ? `/create?id=${encodeURIComponent(id)}`
+    : design
+      ? `/create?design=${encodeURIComponent(design)}`
+      : '/create';
+  const user = await requireUser(next);
 
   if (id) {
     const existing = await getInvitation(id);

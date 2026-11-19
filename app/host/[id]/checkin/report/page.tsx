@@ -7,9 +7,11 @@ import { getInvitation } from '@/lib/store';
 export const dynamic = 'force-dynamic';
 
 export default async function CheckInReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
   const { id } = await params;
-  const invitation = await getInvitation(id);
+  const [user, invitation] = await Promise.all([
+    requireUser(`/host/${id}/checkin/report`),
+    getInvitation(id),
+  ]);
   if (!invitation || !canManage(invitation, user)) notFound();
   return <CheckInReport inv={invitation} />;
 }

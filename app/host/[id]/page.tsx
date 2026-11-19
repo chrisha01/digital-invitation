@@ -19,7 +19,7 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   // The session check and the invitation fetch do not depend on each other, so
   // they run together instead of one round trip after the other.
-  const [user, stored] = await Promise.all([requireUser(), getInvitation(id)]);
+  const [user, stored] = await Promise.all([requireUser(`/host/${id}`), getInvitation(id)]);
   if (!stored || !canManage(stored, user)) notFound();
 
   // There is no scheduler in this app, so reminders that came due are sent when
