@@ -165,6 +165,24 @@ export default function HostDashboard({
       .some((value) => String(value).toLowerCase().includes(guestFilter));
   });
 
+  // Announce a filter that leaves nobody, but only after the typing settles, so
+  // a screen reader hears the outcome once instead of on every keystroke.
+  const [emptyNotice, setEmptyNotice] = useState('');
+  useEffect(() => {
+    if (visibleGuests.length || !filtering) {
+      setEmptyNotice('');
+      return;
+    }
+    const timer = window.setTimeout(
+      () =>
+        setEmptyNotice(
+          guestFilter ? 'No guests match that search.' : 'No guests match that filter.',
+        ),
+      600,
+    );
+    return () => window.clearTimeout(timer);
+  }, [visibleGuests.length, filtering, guestFilter]);
+
   // What the print-only line says about a partial list.
   const filterSummary = [
     guestStatus !== 'all' ? `reply: ${STATUS_LABEL[guestStatus]}` : null,
@@ -1020,6 +1038,10 @@ export default function HostDashboard({
               {filterSummary ? ` (${filterSummary})` : null}.
             </p>
           ) : null}
+
+          <p className="sr-only" role="status">
+            {emptyNotice}
+          </p>
 
           {guests.length === 0 ? (
             <p className="panel-note">

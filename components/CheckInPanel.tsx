@@ -56,6 +56,18 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
       });
   }, [guests, query]);
 
+  // Same settling rule as the dashboard list: announce an empty search once,
+  // not on every keypress.
+  const [emptyNotice, setEmptyNotice] = useState('');
+  useEffect(() => {
+    if (visible.length || !query.trim()) {
+      setEmptyNotice('');
+      return;
+    }
+    const timer = window.setTimeout(() => setEmptyNotice('No guests match that search.'), 600);
+    return () => window.clearTimeout(timer);
+  }, [visible.length, query]);
+
   function stopCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -305,6 +317,10 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
               {flash.text}
             </p>
           ) : null}
+
+          <p className="sr-only" role="status">
+            {emptyNotice}
+          </p>
 
           {visible.length ? (
             <div className="table-wrap">
