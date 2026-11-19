@@ -4241,6 +4241,17 @@ input[type='range'] {
   backdrop-filter: blur(6px);
 }
 
+/* The not-found page keeps the app frame: its message scrolls, the tabs pin. */
+.m-notfound {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.m-notfound .m-page {
+  flex: 1;
+}
+
 .m-tabs {
   position: sticky;
   bottom: 0;

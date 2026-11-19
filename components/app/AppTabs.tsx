@@ -46,9 +46,11 @@ const TABS = [
   },
 ];
 
-export default function AppTabs() {
+export default function AppTabs({ always = false }: { always?: boolean }) {
   const pathname = usePathname();
-  if (pathname.startsWith('/app/i/')) return null;
+  // Invitation pages hide the bar to keep the detail view focused, but a page
+  // that is not there has nowhere to go, so it asks for the bar regardless.
+  if (!always && pathname.startsWith('/app/i/')) return null;
 
   return (
     <nav className="m-tabs" aria-label="App sections">
