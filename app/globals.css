@@ -4280,6 +4280,14 @@ input[type='range'] {
   max-width: 520px;
 }
 
+/* The error page offers two ways on, side by side when they fit. */
+.m-notfound-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 .m-tabs {
   position: sticky;
   bottom: 0;

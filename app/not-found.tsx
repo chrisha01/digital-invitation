@@ -1,22 +1,9 @@
 import Link from 'next/link';
-import BrandMark from '@/components/BrandMark';
+import SiteShell from '@/components/SiteShell';
 
 export default function RootNotFound() {
   return (
-    <div className="home">
-      <header className="home-nav">
-        <Link href="/" className="brand">
-          <BrandMark />
-        </Link>
-        <nav className="home-links">
-          <Link href="/#designs">Designs</Link>
-          <Link href="/#how">How it works</Link>
-          <Link className="btn btn-primary" href="/create">
-            Start an invitation
-          </Link>
-        </nav>
-      </header>
-
+    <SiteShell>
       <section className="lost">
         <p className="hero-eyebrow">404 — page not found</p>
         <h1>This page went out in the wrong post.</h1>
@@ -33,16 +20,6 @@ export default function RootNotFound() {
           </Link>
         </div>
       </section>
-
-      <footer className="home-footer">
-        <span className="brand">
-          <BrandMark />
-        </span>
-        <span className="muted small">
-          An original design study of the online-stationery workflow. Not affiliated with any
-          stationery company.
-        </span>
-      </footer>
-    </div>
+    </SiteShell>
   );
 }

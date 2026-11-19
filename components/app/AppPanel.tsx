@@ -1,15 +1,19 @@
 import Link from 'next/link';
 
-// One shape for "this is not here" inside the app: a way back, the reason, and
-// one obvious next step. Both not-found pages differ only in their words.
-export default function NotFoundPanel({
+// One shape for "this did not work out" inside the app: a way back, the reason,
+// and one obvious next step. Not-found and error pages differ only in words.
+export default function AppPanel({
   title,
   reason,
+  panelTitle,
   note,
+  children,
 }: {
   title: string;
   reason: string;
+  panelTitle: string;
   note: string;
+  children?: React.ReactNode;
 }) {
   return (
     <main className="m-page">
@@ -23,11 +27,13 @@ export default function NotFoundPanel({
       </header>
 
       <div className="m-empty">
-        <h2>Nothing to open</h2>
+        <h2>{panelTitle}</h2>
         <p>{note}</p>
-        <Link className="btn btn-primary" href="/app">
-          Back to invitations
-        </Link>
+        {children ?? (
+          <Link className="btn btn-primary" href="/app">
+            Back to invitations
+          </Link>
+        )}
       </div>
     </main>
   );
