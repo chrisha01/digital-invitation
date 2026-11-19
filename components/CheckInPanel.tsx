@@ -281,7 +281,11 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
               <span>Hold the guest’s pass inside the frame</span>
             </div>
           ) : null}
-          {scanError ? <p className="form-error">{scanError}</p> : null}
+          {scanError ? (
+            <p className="form-error" role="alert">
+              {scanError}
+            </p>
+          ) : null}
 
           <label className="field">
             <span className="field-label">Find a guest</span>

@@ -14,7 +14,9 @@ export default function CopyFallback({ outcome }: CopyFallbackProps) {
   if (!isFailed(outcome)) return null;
   return (
     <>
-      <p className="form-error">{outcome.reason}</p>
+      <p className="form-error" role="alert">
+        {outcome.reason}
+      </p>
       <textarea
         className="input mono"
         rows={outcome.text.includes('\n') ? 4 : 2}

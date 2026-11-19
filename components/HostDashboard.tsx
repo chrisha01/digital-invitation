@@ -747,7 +747,11 @@ export default function HostDashboard({
           </p>
         ) : null}
 
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <section className="host-card">
           <div className="panel-head">
@@ -853,7 +857,11 @@ export default function HostDashboard({
               They get access as soon as they sign in with that email — no invitation email is sent.
             </p>
           ) : null}
-          {coHostError ? <p className="form-error">{coHostError}</p> : null}
+          {coHostError ? (
+            <p className="form-error" role="alert">
+              {coHostError}
+            </p>
+          ) : null}
         </section>
 
         <section className="host-card">
@@ -1250,7 +1258,11 @@ export default function HostDashboard({
             <span className="muted small">{reminderReach} reachable on this channel</span>
           </div>
 
-          {reminderError ? <p className="form-error">{reminderError}</p> : null}
+          {reminderError ? (
+            <p className="form-error" role="alert">
+              {reminderError}
+            </p>
+          ) : null}
           {reminderNote ? <p className="text-result">{reminderNote}</p> : null}
 
           {reminders.length ? (
@@ -1389,7 +1401,11 @@ export default function HostDashboard({
               will be skipped.
             </p>
           ) : null}
-          {textError ? <p className="form-error">{textError}</p> : null}
+          {textError ? (
+            <p className="form-error" role="alert">
+              {textError}
+            </p>
+          ) : null}
           {textResult ? <p className="text-result">{textResult}</p> : null}
 
           {texts.length ? (
@@ -1516,7 +1532,11 @@ export default function HostDashboard({
                 ) : null}
               </div>
 
-              {emailError ? <p className="form-error">{emailError}</p> : null}
+              {emailError ? (
+                <p className="form-error" role="alert">
+                  {emailError}
+                </p>
+              ) : null}
               {emailResult ? <p className="text-result">{emailResult}</p> : null}
 
               {emails.length ? (

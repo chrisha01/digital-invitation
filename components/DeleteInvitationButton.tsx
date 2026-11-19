@@ -52,7 +52,11 @@ export default function DeleteInvitationButton({
       <button className="btn btn-ghost btn-small" onClick={() => setArmed(false)}>
         Keep
       </button>
-      {error ? <span className="form-error">{error}</span> : null}
+      {error ? (
+        <span className="form-error" role="alert">
+          {error}
+        </span>
+      ) : null}
     </span>
   );
 }
