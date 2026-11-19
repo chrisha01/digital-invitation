@@ -115,6 +115,9 @@ export default function GuestView({
   }
 
   const displayName = guest?.name ?? viewer.name;
+  // A stale link still names someone, but printing that name would claim an
+  // identity the link cannot prove; address the envelope to the reader instead.
+  const printedName = displayName ?? (viewer.linkExpired ? 'our guest' : null);
   const envelopeVisible =
     stage === 'closed' || stage === 'opening' || stage === 'peek' || leavingEnvelope;
 
@@ -131,7 +134,7 @@ export default function GuestView({
           <EnvelopeCard
             envelope={inv.envelope}
             designSlug={inv.designSlug}
-            guestName={displayName}
+            guestName={printedName}
             monogram={inv.event.host}
             open={stage !== 'closed'}
             peeking={stage === 'peek' || leavingEnvelope}
@@ -144,7 +147,13 @@ export default function GuestView({
             }
           />
           <p className="envelope-hint" aria-live="polite">
-            {stage === 'closed' ? 'Tap the envelope' : stage === 'opening' ? 'Opening…' : ''}
+            {stage === 'closed'
+              ? viewer.linkExpired
+                ? 'Link out of date — tap the envelope'
+                : 'Tap the envelope'
+              : stage === 'opening'
+                ? 'Opening…'
+                : ''}
           </p>
           {/* Kept mounted once the envelope is open so the stage keeps its height
               and the envelope never shifts under the tap. */}

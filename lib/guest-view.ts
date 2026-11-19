@@ -37,8 +37,9 @@ export type GuestFacingInvitation = Pick<
 
 /**
  * Who is looking at the guest page, and how much that is worth. A signed
- * personal link sets `guest` and earns a pass; an older unsigned link only
- * knows the name to print, and a bare invitation link has neither.
+ * personal link sets `guest` and earns a pass. A link that names a guest but
+ * cannot prove it sets neither: the id alone is not evidence, so no name is
+ * printed and the page explains the link is out of date.
  */
 export type GuestPageViewer = {
   guest: Guest | null;

@@ -71,7 +71,9 @@ async function GuestCard({
       inv={guestFacing(invitation, guest)}
       viewer={{
         guest,
-        name: linked?.name ?? null,
+        // A name taken from an unproved id is not printed anywhere: the page
+        // says the link is out of date instead.
+        name: guest?.name ?? null,
         token: guest ? await guestToken(id, guest.id) : null,
         passSvg,
         // A personal link that names a guest but cannot prove it: a signature
