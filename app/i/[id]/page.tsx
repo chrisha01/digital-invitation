@@ -74,6 +74,9 @@ async function GuestCard({
         name: linked?.name ?? null,
         token: guest ? await guestToken(id, guest.id) : null,
         passSvg,
+        // A personal link that names a guest but cannot prove it: a signature
+        // from before a secret change, or a name since removed from the list.
+        linkExpired: Boolean(g) && !guest,
       }}
     />
   );

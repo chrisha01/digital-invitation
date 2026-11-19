@@ -23,7 +23,8 @@ export default async function AppGuestPage({ params }: { params: Promise<{ id: s
       </Link>
       <GuestView
         inv={guestFacing(inv, null)}
-        viewer={{ guest: null, name: null, token: null, passSvg: null }}
+        // The host's preview is not a guest link, so there is nothing out of date.
+        viewer={{ guest: null, name: null, token: null, passSvg: null, linkExpired: false }}
       />
     </div>
   );

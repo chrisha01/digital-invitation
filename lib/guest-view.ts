@@ -47,6 +47,8 @@ export type GuestPageViewer = {
   token: string | null;
   /** This guest's entry pass, which only a signed link can show. */
   passSvg: string | null;
+  /** A link named a guest whose signature no longer verifies, or who is gone. */
+  linkExpired: boolean;
 };
 
 export function guestFacing(

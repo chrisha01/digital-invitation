@@ -219,6 +219,16 @@ export default function GuestView({
                 </>
               ) : null}
             </p>
+            {viewer.linkExpired ? (
+              <p
+                className="guest-link-note"
+                style={{ borderColor: withAlpha(inv.page.text, 0.3) }}
+              >
+                This link is out of date, so we can’t confirm it’s yours. Ask the host for a fresh
+                one to see your pass and keep your reply on the right guest.
+              </p>
+            ) : null}
+
             {inv.event.description ? <p className="guest-desc">{inv.event.description}</p> : null}
             {inv.event.dressCode ? (
               <p className="guest-dress">

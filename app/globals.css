@@ -2107,6 +2107,18 @@ input[type='range'] {
   opacity: 0.9;
 }
 
+/* A personal link that no longer proves who it is: said quietly, in the
+   invitation's own ink, rather than as a page-level warning. */
+.guest-link-note {
+  max-width: 46ch;
+  margin: 0 auto;
+  padding: 10px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
 .guest-dress {
   font-size: 13px;
   letter-spacing: 0.06em;
