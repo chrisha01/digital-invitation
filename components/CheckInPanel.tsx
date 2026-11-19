@@ -298,7 +298,10 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
           </label>
 
           {flash ? (
-            <p className={flash.tone === 'ok' ? 'checkin-flash is-ok' : 'checkin-flash is-bad'}>
+            <p
+              className={flash.tone === 'ok' ? 'checkin-flash is-ok' : 'checkin-flash is-bad'}
+              role={flash.tone === 'ok' ? 'status' : 'alert'}
+            >
               {flash.text}
             </p>
           ) : null}

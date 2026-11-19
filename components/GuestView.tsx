@@ -302,15 +302,18 @@ export default function GuestView({
 
             {inv.settings.collectRsvp ? (
               justSaved ? (
-                <div className="rsvp-thanks" role="status">
-                  <h3>Thank you{guest?.name ? `, ${guest.name.split(' ')[0]}` : ''}.</h3>
-                  <p>
-                    {guest?.status === 'yes'
-                      ? 'Your reply is in — we cannot wait to see you.'
-                      : guest?.status === 'no'
-                        ? 'Your reply is in. You will be missed.'
-                        : 'Your reply is in. Let us know if anything changes.'}
-                  </p>
+                <div className="rsvp-thanks">
+                  {/* Only the confirmation is announced; the button stays a plain control. */}
+                  <div role="status">
+                    <h3>Thank you{guest?.name ? `, ${guest.name.split(' ')[0]}` : ''}.</h3>
+                    <p>
+                      {guest?.status === 'yes'
+                        ? 'Your reply is in — we cannot wait to see you.'
+                        : guest?.status === 'no'
+                          ? 'Your reply is in. You will be missed.'
+                          : 'Your reply is in. Let us know if anything changes.'}
+                    </p>
+                  </div>
                   <button className="btn btn-ghost btn-small" onClick={() => setJustSaved(false)}>
                     Change my reply
                   </button>
