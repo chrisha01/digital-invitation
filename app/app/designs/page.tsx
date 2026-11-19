@@ -17,6 +17,10 @@ export default async function AppDesignsPage() {
         <p className="m-sub">Pick a starting point. Words stay yours; the rest is restyled.</p>
       </header>
 
+      {categories.length === 0 ? (
+        <p className="filter-empty">No designs are available right now. Try again shortly.</p>
+      ) : null}
+
       {categories.map((category) => (
         <section key={category} className="m-group">
           <h2 className="m-group-title">{category}</h2>

@@ -123,8 +123,9 @@ export default function CheckInReport({ inv }: { inv: Invitation }) {
             <h2 className="panel-title">By household</h2>
             <span className="muted small">{households.size} households &amp; groups</span>
           </div>
-          <div className="table-wrap">
-            <table className="guest-table report-table cards">
+          {guests.length ? (
+            <div className="table-wrap">
+              <table className="guest-table report-table cards">
               <thead>
                 <tr>
                   <th>Household</th>
@@ -150,8 +151,14 @@ export default function CheckInReport({ inv }: { inv: Invitation }) {
                     </tr>
                   ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          ) : (
+            <p className="filter-empty">
+              No guests yet, so there is nobody to report on. Add names on the dashboard and their
+              replies, seats and arrivals will collect here.
+            </p>
+          )}
         </section>
 
         <section className="host-card">

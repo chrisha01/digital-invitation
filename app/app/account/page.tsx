@@ -18,6 +18,11 @@ export default async function AppAccountPage() {
         <h2>{user.name}</h2>
         <p>{user.email}</p>
         <p className="m-meta">{saved.length === 1 ? '1 invitation' : `${saved.length} invitations`}</p>
+        {saved.length === 0 ? (
+          <p className="filter-empty">
+            No invitations yet. Start one from a design and it will show up in your list.
+          </p>
+        ) : null}
       </div>
 
       <div className="m-panel">
