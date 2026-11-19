@@ -1027,8 +1027,10 @@ export default function HostDashboard({
               everyone and let them reply.
             </p>
           ) : !visibleGuests.length ? (
-            <p className="panel-note">
-              No guests match that search. Try another name, or clear the filter to see everyone.
+            <p className="filter-empty">
+              {guestFilter
+                ? `No guest matches “${guestQuery.trim()}”. Try another name, or clear the search to see everyone.`
+                : 'No guests with that reply yet. Clear the filter to see everyone.'}
             </p>
           ) : (
             <div className="table-wrap">

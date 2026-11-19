@@ -3515,7 +3515,8 @@ input[type='range'] {
   background: color-mix(in srgb, #2f7d57 5%, transparent);
 }
 
-.checkin-empty {
+/* Shown when a guest search or reply filter leaves nobody. */
+.filter-empty {
   margin: 4px 0 0;
   padding: 26px 20px;
   border: 1px dashed color-mix(in srgb, currentColor 20%, transparent);

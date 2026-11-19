@@ -372,7 +372,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
               </table>
             </div>
           ) : (
-            <p className="checkin-empty">
+            <p className="filter-empty">
               {query.trim()
                 ? `No guest matches “${query.trim()}”. Check the spelling, or scan their pass instead.`
                 : 'No guests on this list yet.'}
