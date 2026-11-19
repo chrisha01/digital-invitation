@@ -84,7 +84,8 @@ button {
   min-height: 0;
 }
 
-/* Covers the app frame while a tapped link waits for its page. */
+/* Covers the scrolling area while a tapped link waits for its page, so the
+   tab bar stays visible and reachable throughout. */
 .m-nav-loading {
   position: absolute;
   inset: 0;
@@ -3508,6 +3509,15 @@ input[type='range'] {
   background: var(--paper);
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
+}
+
+/* Holds the scrolling area and the navigation overlay; the tab bar sits below. */
+.m-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* The app scrolls inside its own frame, and it does so without a scrollbar. */

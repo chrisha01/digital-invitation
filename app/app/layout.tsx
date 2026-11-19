@@ -11,8 +11,10 @@ export const metadata = {
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="m-app">
-      <NavIndicator />
-      <div className="m-scroll">{children}</div>
+      <div className="m-body">
+        <div className="m-scroll">{children}</div>
+        <NavIndicator />
+      </div>
       <AppTabs />
     </div>
   );
