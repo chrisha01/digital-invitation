@@ -674,6 +674,15 @@ export default function HostDashboard({
       </header>
 
       <main className="host-main">
+        <p className="sr-only" role="status">
+          {copied === 'share'
+            ? 'Invitation link copied'
+            : copied === 'phones'
+              ? 'Phone numbers copied'
+              : copied
+                ? 'Personal link copied'
+                : ''}
+        </p>
         <section className="share-panel">
           <div>
             <h1 className="host-heading">{inv.event.title}</h1>
@@ -1263,7 +1272,11 @@ export default function HostDashboard({
               {reminderError}
             </p>
           ) : null}
-          {reminderNote ? <p className="text-result">{reminderNote}</p> : null}
+          {reminderNote ? (
+            <p className="text-result" role="status">
+              {reminderNote}
+            </p>
+          ) : null}
 
           {reminders.length ? (
             <div className="reminder-list">
@@ -1406,7 +1419,11 @@ export default function HostDashboard({
               {textError}
             </p>
           ) : null}
-          {textResult ? <p className="text-result">{textResult}</p> : null}
+          {textResult ? (
+            <p className="text-result" role="status">
+              {textResult}
+            </p>
+          ) : null}
 
           {texts.length ? (
             <div className="text-history">
@@ -1537,7 +1554,11 @@ export default function HostDashboard({
                   {emailError}
                 </p>
               ) : null}
-              {emailResult ? <p className="text-result">{emailResult}</p> : null}
+              {emailResult ? (
+                <p className="text-result" role="status">
+                  {emailResult}
+                </p>
+              ) : null}
 
               {emails.length ? (
                 <div className="text-history">

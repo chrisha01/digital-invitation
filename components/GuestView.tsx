@@ -302,7 +302,7 @@ export default function GuestView({
 
             {inv.settings.collectRsvp ? (
               justSaved ? (
-                <div className="rsvp-thanks">
+                <div className="rsvp-thanks" role="status">
                   <h3>Thank you{guest?.name ? `, ${guest.name.split(' ')[0]}` : ''}.</h3>
                   <p>
                     {guest?.status === 'yes'

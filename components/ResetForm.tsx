@@ -143,6 +143,9 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
               copyOutcome.outcome === 'failed' ? (
                 <CopyFallback outcome={copyOutcome} />
               ) : null}
+              <span className="sr-only" role="status">
+                {copyOutcome && copyOutcome.outcome === 'copied' ? 'Reset link copied' : ''}
+              </span>
               <a className="btn btn-primary btn-small" href={link}>
                 Open reset page
               </a>

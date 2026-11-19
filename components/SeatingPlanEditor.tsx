@@ -489,10 +489,17 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
               copyOutcome.outcome === 'failed' ? (
                 <CopyFallback outcome={copyOutcome} />
               ) : null}
+              <span className="sr-only" role="status">
+                {copyOutcome && copyOutcome.outcome === 'copied' ? 'Seating plan copied' : ''}
+              </span>
             </div>
           </div>
 
-          {note ? <p className="seating-alert">{note}</p> : null}
+          {note ? (
+            <p className="seating-alert" role="status">
+              {note}
+            </p>
+          ) : null}
 
           {drift.length ? (
             <div className="seating-drift" role="status">
