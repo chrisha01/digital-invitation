@@ -306,8 +306,9 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
             </p>
           ) : null}
 
-          <div className="table-wrap">
-            <table className="guest-table checkin-table cards">
+          {visible.length ? (
+            <div className="table-wrap">
+              <table className="guest-table checkin-table cards">
               <thead>
                 <tr>
                   <th>Guest</th>
@@ -368,8 +369,15 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          ) : (
+            <p className="checkin-empty">
+              {query.trim()
+                ? `No guest matches “${query.trim()}”. Check the spelling, or scan their pass instead.`
+                : 'No guests on this list yet.'}
+            </p>
+          )}
 
           <div className="row-actions">
             <button className="btn btn-ghost btn-small" onClick={exportAttendance}>
