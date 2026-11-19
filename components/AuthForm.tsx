@@ -107,7 +107,11 @@ export default function AuthForm({ next }: { next: string }) {
         ) : null}
       </label>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {mode === 'signin' ? (
         <a className="muted small auth-forgot" href="/reset">

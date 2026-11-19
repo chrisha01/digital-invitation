@@ -76,7 +76,11 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
           />
           <span className="field-hint">At least 8 characters.</span>
         </label>
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <button className="btn btn-primary btn-wide">
           Save password and sign in
         </button>
@@ -103,7 +107,11 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
         />
       </label>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {requested ? (
         link ? (

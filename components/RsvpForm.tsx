@@ -288,7 +288,11 @@ export default function RsvpForm({
         />
       </label>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <button className="btn btn-primary btn-wide">Send reply</button>
     </form>
