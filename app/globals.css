@@ -78,7 +78,7 @@ button {
 }
 
 /* Inside the app frame it fills the scroll area rather than the whole window. */
-.m-scroll > .loading-screen {
+.m-scroll .loading-screen {
   flex: 1;
   min-height: 0;
 }

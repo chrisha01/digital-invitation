@@ -1,12 +1,16 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import QRCode from 'qrcode';
 import GuestView from '@/components/GuestView';
+import Loading from '@/components/Loading';
 import { passCode } from '@/lib/checkin';
 import { guestFacing } from '@/lib/guest-view';
 import { guestToken, verifyGuestToken } from '@/lib/guest-token';
 import { getInvitation } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
+
+type Invitation = NonNullable<Awaited<ReturnType<typeof getInvitation>>>;
 
 export default async function InvitationPage({
   params,
@@ -17,9 +21,29 @@ export default async function InvitationPage({
 }) {
   const { id } = await params;
   const { g, t } = await searchParams;
+  // The card has to exist before anything streams, or a missing link would be
+  // answered with a 200 shell instead of a real 404.
   const invitation = await getInvitation(id);
   if (!invitation) notFound();
 
+  return (
+    <Suspense fallback={<Loading />}>
+      <GuestCard invitation={invitation} id={id} g={g} t={t} />
+    </Suspense>
+  );
+}
+
+async function GuestCard({
+  invitation,
+  id,
+  g,
+  t,
+}: {
+  invitation: Invitation;
+  id: string;
+  g?: string;
+  t?: string;
+}) {
   // A personal link made before links were signed still knows whose it is, so it
   // gets the name on the envelope and nothing more: no pass, no prefilled reply,
   // no contact details, and no way to claim that row when replying.

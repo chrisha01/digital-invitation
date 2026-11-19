@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import HostDashboard from '@/components/HostDashboard';
+import Loading from '@/components/Loading';
 import { canManage, isOwner } from '@/lib/access';
 import { requireUser } from '@/lib/auth';
 import { emailSetup } from '@/lib/email';
@@ -10,6 +12,8 @@ import { smsSetup } from '@/lib/sms';
 import { getInvitation } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
+
+type Invitation = NonNullable<Awaited<ReturnType<typeof getInvitation>>>;
 
 export default async function HostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,6 +31,27 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
   // Fire and forget so the dashboard renders at once, but never leave the promise
   // unhandled: a failed send must not surface as a server error.
   void runDueReminders(stored, origin).catch(() => undefined);
+
+  return (
+    <Suspense fallback={<Loading />}>
+      <HostBoard
+        stored={stored}
+        origin={origin}
+        role={isOwner(stored, user) ? 'owner' : 'collaborator'}
+      />
+    </Suspense>
+  );
+}
+
+async function HostBoard({
+  stored,
+  origin,
+  role,
+}: {
+  stored: Invitation;
+  origin: string;
+  role: 'owner' | 'collaborator';
+}) {
   const sms = smsSetup();
   const email = emailSetup();
   // Personal links are signed, so the dashboard needs the signatures for the
@@ -41,7 +66,7 @@ export default async function HostPage({ params }: { params: Promise<{ id: strin
       guestLinks={guestLinks}
       sms={{ configured: Boolean(sms.provider), missing: sms.missing }}
       mail={{ configured: Boolean(email.provider), missing: email.missing }}
-      role={isOwner(stored, user) ? 'owner' : 'collaborator'}
+      role={role}
     />
   );
 }
