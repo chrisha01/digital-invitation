@@ -52,6 +52,20 @@ npm run db:import          # one-off: copy .data/invitations.json in
 npm run db:import-users    # one-off: copy .data/users.json and the session secret in
 ```
 
+### Local database
+
+For local testing the repo can carry its own PostgreSQL, so nothing leaves the machine. The server
+binaries live in `.localdb/` (git-ignored) and listen on `127.0.0.1:5544`:
+
+```bash
+npm run db:local:start                    # start on port 5544
+DATABASE_URL=postgresql://postgres@127.0.0.1:5544/gatherly npm run db:migrate
+npm run db:local:stop                     # stop; data stays in .localdb/data
+```
+
+`.localdb/postgres.log` holds the server log. Point `DATABASE_URL` in `.env` at that URL while you
+test, and put the Neon string back when you want the hosted database again.
+
 Both imports only **add** rows the database does not already have. An id or email that is already
 present is skipped and left exactly as it is, so re-running an import can never roll back edits made
 since — they bring a fresh database up to date, they do not sync backwards. Invitation writes go

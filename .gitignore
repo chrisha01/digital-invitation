@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# local PostgreSQL used for development
+.localdb/
+
 # dependencies
 node_modules/
 
