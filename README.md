@@ -69,9 +69,20 @@ untouched when `.localdb/` is absent. `.localdb/postgres.log` holds the server l
 connection string stays in `.env` as a commented `# NEON_DATABASE_URL=` line, so the two switches
 never lose it. Both are idempotent, and either one needs a server restart to take effect.
 
-To seed the local database from the hosted one, export the rows into the import layout first, then
-point both import scripts at it: `GATHERLY_DATA_DIR=<dir> npm run db:import-users` and
-`GATHERLY_DATA_DIR=<dir> npm run db:import` — both only add rows that are missing.
+Copying data between the two databases is four commands, no ad-hoc scripts:
+
+```bash
+npm run db:use:neon     # read from the hosted database
+npm run db:export       # → .data/export/{invitations.json,users.json,session-secret}
+npm run db:use:local    # write into the local one
+GATHERLY_DATA_DIR=.data/export npm run db:import-users
+GATHERLY_DATA_DIR=.data/export npm run db:import
+```
+
+`db:export` prints those last two lines for you, and takes an optional directory
+(`npm run db:export -- /some/dir`). Both imports only **add** rows that are missing, so re-running
+them never overwrites edits made on the target; `.data/export/` holds password hashes and the
+session key, so treat it like `.env` and delete it when you are done.
 
 Both imports only **add** rows the database does not already have. An id or email that is already
 present is skipped and left exactly as it is, so re-running an import can never roll back edits made
