@@ -1,5 +1,4 @@
-import { getInvitation } from '@/lib/store';
-import type { Invitation } from '@/lib/types';
+import { getInvitationImage } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +13,11 @@ type Slot = (typeof SLOTS)[number];
  * page then references this route instead of carrying the base64 itself, which
  * halves the page and makes repeat visits free. The `v` in the URL is the
  * invitation's last save, so the response can be cached for good.
+ *
+ * Only the slot itself is read out of the row — see getInvitationImage — since a
+ * guest list grows every time somebody replies and the document also holds the
+ * photo we are already serving.
  */
-function inlineImage(invitation: Invitation, slot: Slot): string | null {
-  if (slot === 'photo') return invitation.card?.photo ?? null;
-  if (slot === 'portrait') return invitation.card?.portrait ?? null;
-  return invitation.backdrop?.image ?? null;
-}
 
 export async function GET(
   _request: Request,
@@ -30,10 +28,7 @@ export async function GET(
     return new Response('Not found', { status: 404 });
   }
 
-  const invitation = await getInvitation(id);
-  if (!invitation) return new Response('Not found', { status: 404 });
-
-  const value = inlineImage(invitation, slot as Slot);
+  const value = await getInvitationImage(id, slot as Slot);
   const parsed = value ? /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(value) : null;
   if (!parsed) return new Response('Not found', { status: 404 });
 

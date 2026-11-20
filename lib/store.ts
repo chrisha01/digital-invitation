@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { getPool } from './db';
 import type { Invitation, InvitationSummary } from './types';
 
@@ -8,6 +9,17 @@ import type { Invitation, InvitationSummary } from './types';
  */
 
 type DocumentRow = { document: Invitation };
+
+/** The tag that holds the cached dashboard lists; see lib/invitation-cache.ts. */
+export const INVITATION_LIST_TAG = 'invitations';
+
+/**
+ * Drops the cached per-owner lists after a change, so the next dashboard view
+ * re-reads them. Safe to call for every write: with nothing cached it is a no-op.
+ */
+function forgetLists() {
+  revalidateTag(INVITATION_LIST_TAG);
+}
 
 /**
  * Counts a list page needs, taken out of the document by Postgres.
@@ -155,11 +167,13 @@ export async function getInvitation(id: string): Promise<Invitation | null> {
 
 export async function putInvitation(invitation: Invitation): Promise<Invitation> {
   await getPool().query(UPSERT, upsertValues(invitation));
+  forgetLists();
   return invitation;
 }
 
 export async function deleteInvitation(id: string): Promise<void> {
   await getPool().query('delete from invitations where id = $1', [id]);
+  forgetLists();
 }
 
 /**
@@ -190,6 +204,8 @@ export async function mutateInvitation(
     const values = upsertValues(existing);
     await client.query(UPSERT, values);
     await client.query('commit');
+    // Only after the commit: a change that rolled back never happened.
+    forgetLists();
     return existing;
   } catch (error) {
     await client.query('rollback').catch(() => undefined);
@@ -209,7 +225,29 @@ export async function claimOrphanInvitations(ownerId: string): Promise<number> {
       returning id`,
     [ownerId],
   );
+  if (rows.length) forgetLists();
   return rows.length;
+}
+
+/**
+ * One inline picture, read without the rest of the document.
+ *
+ * Checking in, replying and every guest list write all make the document bigger,
+ * and a document can carry a base64 photo; serving a picture used to pull the
+ * whole row across the wire to read a single field. `#>` picks the slot out of
+ * the stored jsonb, so only the bytes being served leave Postgres.
+ */
+export async function getInvitationImage(
+  id: string,
+  slot: 'photo' | 'portrait' | 'backdrop',
+): Promise<string | null> {
+  const path = slot === 'photo' ? ['card', 'photo'] : slot === 'portrait' ? ['card', 'portrait'] : ['backdrop', 'image'];
+  const { rows } = await getPool().query<{ value: string | null }>(
+    'select document #> $2::text[] as value from invitations where id = $1',
+    [id, path],
+  );
+  const value = rows[0]?.value;
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 /** Every image URL any invitation references, for the orphan sweep. */

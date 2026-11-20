@@ -4,7 +4,7 @@ import BrandMark from '@/components/BrandMark';
 import Loading from '@/components/Loading';
 import StartInvitation from '@/components/app/StartInvitation';
 import { requireUser } from '@/lib/auth';
-import { listInvitations } from '@/lib/store';
+import { cachedInvitations } from '@/lib/invitation-cache';
 import { formatWhen } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,7 @@ export default async function AppHomePage() {
 }
 
 async function InvitationList({ userId }: { userId: string }) {
-  const saved = await listInvitations(userId);
+  const saved = await cachedInvitations(userId);
   const now = Date.now();
   // Nearest first, then the archive newest-first — same order as the web home.
   const invitations = [...saved].sort((a, b) => {
