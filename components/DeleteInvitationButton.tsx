@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 /**
  * Deleting an invitation throws away its guest list and replies, so the first
@@ -21,6 +21,13 @@ export default function DeleteInvitationButton({
   const router = useRouter();
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const warningId = useId();
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  // The button the user pressed is replaced, so hand focus to its successor.
+  useEffect(() => {
+    if (armed) confirmRef.current?.focus();
+  }, [armed]);
 
   async function remove() {
     setError(null);
@@ -46,7 +53,17 @@ export default function DeleteInvitationButton({
 
   return (
     <span className="delete-confirm">
-      <button className="btn btn-danger btn-small" onClick={remove}>
+      {/* Arming swaps the button for a red one, so say out loud what the second
+          press does — the visual change alone is invisible to a screen reader. */}
+      <span className="sr-only" role="status" id={warningId}>
+        Delete armed. Press Delete again to permanently delete “{title}”, or Keep to cancel.
+      </span>
+      <button
+        ref={confirmRef}
+        className="btn btn-danger btn-small"
+        onClick={remove}
+        aria-describedby={warningId}
+      >
         Delete “{title.slice(0, 28)}{title.length > 28 ? '…' : ''}”
       </button>
       <button className="btn btn-ghost btn-small" onClick={() => setArmed(false)}>
