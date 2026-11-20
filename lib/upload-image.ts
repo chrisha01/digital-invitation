@@ -9,13 +9,19 @@
  * document, which is written on every save and shipped in the guest page's HTML.
  * A 5 MB camera photo inlined at full size turns one invitation into a 6 MB
  * page, so anything large is re-encoded to a sane size before it leaves the tab.
+ *
+ * The limits are the ones `scripts/db-shrink-images.mjs` applies to pictures that
+ * were stored before this existed, so a new upload weighs what a migrated one
+ * does and the two paths cannot drift apart in spirit: fit inside 1400px on the
+ * long edge and step the JPEG quality down until the file fits a 300 kB budget.
  */
 
 /** Long edge kept for a stored photo; plenty for a card, envelope or backdrop. */
-const MAX_EDGE = 1800;
-/** Files under this are sent untouched: resizing cannot make them much smaller. */
-const SHRINK_ABOVE_BYTES = 450_000;
-const JPEG_QUALITY = 0.82;
+const MAX_EDGE = 1400;
+/** The most a stored photo should weigh; quality steps down until it fits. */
+const BUDGET_BYTES = 300_000;
+/** Tried in order; the first one inside the budget wins, the smallest is the floor. */
+const QUALITIES = [0.82, 0.76, 0.72, 0.68];
 
 /** The size an image should be drawn at to fit inside `max` on its long edge. */
 export function fittedSize(
@@ -30,16 +36,19 @@ export function fittedSize(
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
+function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
 /**
- * Re-encodes one large file smaller. Falls back to the original whenever the
- * browser cannot decode it or the result would not actually be smaller, so a
- * photo the browser does not understand still uploads as it always did.
+ * Re-encodes one file smaller. Falls back to the original whenever the browser
+ * cannot decode it or the result would not actually be smaller, so a photo the
+ * browser does not understand still uploads as it always did.
  */
 async function shrink(file: File): Promise<File> {
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
   // Animated GIFs would lose their frames to a canvas, and canvas cannot encode them back.
-  if (file.type === 'image/gif') return file;
-  if (file.size <= SHRINK_ABOVE_BYTES) return file;
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
 
   let bitmap: ImageBitmap;
   try {
@@ -50,6 +59,10 @@ async function shrink(file: File): Promise<File> {
 
   try {
     const size = fittedSize(bitmap.width, bitmap.height);
+    const resized = size.width !== bitmap.width || size.height !== bitmap.height;
+    // Already inside both limits: encoding again can only cost quality.
+    if (!resized && file.size <= BUDGET_BYTES) return file;
+
     const canvas = document.createElement('canvas');
     canvas.width = size.width;
     canvas.height = size.height;
@@ -59,9 +72,17 @@ async function shrink(file: File): Promise<File> {
 
     // Keep transparency where the source had it; everything else becomes a JPEG.
     const png = file.type === 'image/png';
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, png ? 'image/png' : 'image/jpeg', JPEG_QUALITY),
-    );
+    let blob: Blob | null = null;
+    if (png) {
+      blob = await toBlob(canvas, 'image/png');
+    } else {
+      for (const quality of QUALITIES) {
+        const candidate = await toBlob(canvas, 'image/jpeg', quality);
+        if (!candidate) break;
+        if (!blob || candidate.size < blob.size) blob = candidate;
+        if (candidate.size <= BUDGET_BYTES) break;
+      }
+    }
     if (!blob || blob.size >= file.size) return file;
 
     const name = png ? file.name : `${file.name.replace(/\.[^./\\]+$/, '') || 'photo'}.jpg`;

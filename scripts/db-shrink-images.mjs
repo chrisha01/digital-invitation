@@ -5,17 +5,16 @@ import { Client } from 'pg';
  * editor now stores them at, so old invitations load as light as new ones.
  *
  * The editor shrinks a photo in the browser before uploading (lib/upload-image.ts:
- * 1800px on the long edge, JPEG at 0.82, files under 450 kB left alone). Anything
- * saved before that existed still carries whatever the camera produced, and that
- * whole document is read by the editor and by the guest page's photo route. This
- * does the same job on the server, once.
+ * 1400px on the long edge and the highest JPEG quality that fits a 300 kB
+ * budget). Anything saved before that existed still carries whatever the camera
+ * produced, and that whole document is read by the editor and by the guest page's
+ * photo route. This does the same job on the server, once, with the same limits;
+ * it also leaves any picture already under 450 kB alone, since re-encoding one
+ * that light gains nothing.
  *
- * It is a little stricter than the upload path, because it only ever runs once
- * and nobody is waiting on it: 1400px on the long edge (still more than twice the
- * size a card ever draws a portrait at) and the highest quality whose result fits
- * a 300 kB budget. Re-encoding at the upload path's own 1800px/0.82 can come out
- * *bigger* than an already well-compressed phone photo, which would defeat the
- * point, so quality steps down until the picture is actually light.
+ * Re-encoding a large picture at a higher quality can come out *bigger* than an
+ * already well-compressed phone photo, which would defeat the point, so quality
+ * steps down until the picture is actually light; both paths keep that order.
  *
  *   npm run db:shrink-images             rewrite what is too heavy
  *   npm run db:shrink-images -- --dry-run  report only
@@ -92,10 +91,10 @@ async function encodeJpeg(original, quality) {
 }
 
 /**
- * The same re-encode lib/upload-image.ts asks the browser for, tightened: fit
- * inside 1400px, JPEG unless the source was a PNG that may have transparency,
- * and step the quality down until the picture fits the budget. Returns null when
- * the picture is already light or the re-encode would not help.
+ * The same re-encode lib/upload-image.ts asks the browser for: fit inside
+ * 1400px, JPEG unless the source was a PNG that may have transparency, and step
+ * the quality down until the picture fits the budget. Returns null when the
+ * picture is already light or the re-encode would not help.
  */
 async function shrink(original) {
   if (original.type === 'image/gif' || original.type === 'image/svg+xml') return null;
