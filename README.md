@@ -58,13 +58,20 @@ For local testing the repo can carry its own PostgreSQL, so nothing leaves the m
 binaries live in `.localdb/` (git-ignored) and listen on `127.0.0.1:5544`:
 
 ```bash
-npm run db:local:start                    # start on port 5544
-DATABASE_URL=postgresql://postgres@127.0.0.1:5544/gatherly npm run db:migrate
-npm run db:local:stop                     # stop; data stays in .localdb/data
+npm run db:use:local    # .env DATABASE_URL → postgresql://postgres@127.0.0.1:5544/gatherly
+npm run db:use:neon     # .env DATABASE_URL → the saved # NEON_DATABASE_URL line
+npm run db:local:start  # start on 127.0.0.1:5544 by hand (npm run dev does this itself)
+npm run db:local:stop   # stop; data stays in .localdb/data
 ```
 
-`.localdb/postgres.log` holds the server log. Point `DATABASE_URL` in `.env` at that URL while you
-test, and put the Neon string back when you want the hosted database again.
+`npm run dev` starts the bundled server when nothing is listening on port 5544, and carries on
+untouched when `.localdb/` is absent. `.localdb/postgres.log` holds the server log, and the Neon
+connection string stays in `.env` as a commented `# NEON_DATABASE_URL=` line, so the two switches
+never lose it. Both are idempotent, and either one needs a server restart to take effect.
+
+To seed the local database from the hosted one, export the rows into the import layout first, then
+point both import scripts at it: `GATHERLY_DATA_DIR=<dir> npm run db:import-users` and
+`GATHERLY_DATA_DIR=<dir> npm run db:import` — both only add rows that are missing.
 
 Both imports only **add** rows the database does not already have. An id or email that is already
 present is skipped and left exactly as it is, so re-running an import can never roll back edits made
