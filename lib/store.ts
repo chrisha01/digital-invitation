@@ -9,23 +9,83 @@ import type { Invitation, InvitationSummary } from './types';
 
 type DocumentRow = { document: Invitation };
 
-const headsOf = (guest: { status: string; adults: number; children: number; plusOnes: number }) =>
-  guest.status === 'yes' ? Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes) : 0;
+/**
+ * Counts a list page needs, taken out of the document by Postgres.
+ *
+ * A document holds every guest and, when no bucket is configured, a base64
+ * photo; reading whole documents just to show six numbers shipped hundreds of
+ * kilobytes per invitation over the network on every visit to the home page or a
+ * dashboard. This projection keeps the document on the server.
+ */
+const SUMMARY_COLUMNS = `
+  id,
+  coalesce(nullif(document->>'title', ''), nullif(document->'event'->>'title', ''), 'Untitled invitation') as title,
+  document->>'designSlug' as design_slug,
+  document->>'updatedAt' as updated_at,
+  document->'event'->>'startsAt' as starts_at,
+  document->'event'->>'location' as location,
+  jsonb_array_length(coalesce(document->'guests', '[]'::jsonb)) as guest_count,
+  coalesce(stats.yes_count, 0) as yes_count,
+  coalesce(stats.maybe_count, 0) as maybe_count,
+  coalesce(stats.checked_in, 0) as checked_in,
+  coalesce(stats.headcount, 0) as headcount,
+  coalesce(
+    (select layer->>'text'
+       from jsonb_array_elements(coalesce(document->'card'->'layers', '[]'::jsonb)) as layer
+      where layer->>'name' = 'Hosts'
+      limit 1),
+    document->'event'->>'host'
+  ) as preview`;
 
-function summarise(inv: Invitation): InvitationSummary {
+// The headcount rule from lib/checkin.ts: a yes counts as the people named, or
+// the guest plus their plus-ones, whichever is more.
+const SUMMARY_GUESTS = `
+  left join lateral (
+    select
+      count(*) filter (where g->>'status' = 'yes') as yes_count,
+      count(*) filter (where g->>'status' = 'maybe') as maybe_count,
+      count(*) filter (where nullif(g->>'checkedInAt', '') is not null) as checked_in,
+      coalesce(sum(
+        case when g->>'status' = 'yes' then
+          greatest(
+            1,
+            coalesce((g->>'adults')::int, 0) + coalesce((g->>'children')::int, 0),
+            1 + coalesce((g->>'plusOnes')::int, 0)
+          )
+        else 0 end
+      ), 0) as headcount
+    from jsonb_array_elements(coalesce(document->'guests', '[]'::jsonb)) as g
+  ) as stats on true`;
+
+type SummaryRow = {
+  id: string;
+  title: string;
+  design_slug: string;
+  updated_at: string;
+  starts_at: string | null;
+  location: string | null;
+  guest_count: number;
+  yes_count: string;
+  maybe_count: string;
+  checked_in: string;
+  headcount: string;
+  preview: string | null;
+};
+
+function toSummary(row: SummaryRow): InvitationSummary {
   return {
-    id: inv.id,
-    title: inv.title || inv.event.title || 'Untitled invitation',
-    designSlug: inv.designSlug,
-    updatedAt: inv.updatedAt,
-    startsAt: inv.event.startsAt,
-    location: inv.event.location,
-    guestCount: inv.guests.length,
-    yesCount: inv.guests.filter((g) => g.status === 'yes').length,
-    maybeCount: inv.guests.filter((g) => g.status === 'maybe').length,
-    checkedIn: inv.guests.filter((g) => g.checkedInAt).length,
-    headcount: inv.guests.reduce((sum, g) => sum + headsOf(g), 0),
-    preview: inv.card.layers.find((l) => l.name === 'Hosts')?.text ?? inv.event.host,
+    id: row.id,
+    title: row.title,
+    designSlug: row.design_slug,
+    updatedAt: row.updated_at,
+    startsAt: row.starts_at ?? '',
+    location: row.location ?? '',
+    guestCount: Number(row.guest_count),
+    yesCount: Number(row.yes_count),
+    maybeCount: Number(row.maybe_count),
+    checkedIn: Number(row.checked_in),
+    headcount: Number(row.headcount),
+    preview: row.preview ?? '',
   };
 }
 
@@ -78,13 +138,11 @@ function upsertValues(inv: Invitation) {
 
 export async function listInvitations(ownerId?: string): Promise<InvitationSummary[]> {
   const pool = getPool();
+  const sql = `select ${SUMMARY_COLUMNS} from invitations ${SUMMARY_GUESTS}`;
   const { rows } = ownerId
-    ? await pool.query<DocumentRow>(
-        'select document from invitations where owner_id = $1 order by updated_at desc',
-        [ownerId],
-      )
-    : await pool.query<DocumentRow>('select document from invitations order by updated_at desc');
-  return rows.map((row) => summarise(row.document));
+    ? await pool.query<SummaryRow>(`${sql} where owner_id = $1 order by updated_at desc`, [ownerId])
+    : await pool.query<SummaryRow>(`${sql} order by updated_at desc`);
+  return rows.map(toSummary);
 }
 
 export async function getInvitation(id: string): Promise<Invitation | null> {
@@ -182,12 +240,12 @@ export async function isImageReferenced(url: string): Promise<boolean> {
 
 /** Invitations where this email is a co-host but not the owner. */
 export async function listSharedInvitations(email: string): Promise<InvitationSummary[]> {
-  const { rows } = await getPool().query<DocumentRow>(
-    `select document from invitations
+  const { rows } = await getPool().query<SummaryRow>(
+    `select ${SUMMARY_COLUMNS} from invitations ${SUMMARY_GUESTS}
       where owner_id is not null
         and collaborators @> array[$1::text]
       order by updated_at desc`,
     [email.toLowerCase()],
   );
-  return rows.map((row) => summarise(row.document));
+  return rows.map(toSummary);
 }

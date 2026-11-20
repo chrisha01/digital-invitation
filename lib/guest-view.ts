@@ -52,6 +52,27 @@ export type GuestPageViewer = {
   linkExpired: boolean;
 };
 
+/**
+ * Where the guest page should point an image.
+ *
+ * Without object storage a picture is kept in the document as a base64 data
+ * URL. Sent as-is it travels twice — once in the rendered card, once in the
+ * serialised props — so a 500 kB photo made a 1.4 MB page. Pointing at a route
+ * keeps the document off the page entirely and lets the browser cache the
+ * picture, keyed by the version this invitation last saved.
+ */
+function imageSource(
+  invitationId: string,
+  updatedAt: string | undefined,
+  value: string | null | undefined,
+  slot: 'photo' | 'portrait' | 'backdrop',
+): string | null {
+  if (!value) return null;
+  if (!value.startsWith('data:')) return value;
+  const version = encodeURIComponent(updatedAt ?? '');
+  return `/api/invitations/${encodeURIComponent(invitationId)}/photo/${slot}?v=${version}`;
+}
+
 export function guestFacing(
   invitation: Invitation,
   guest: Guest | null,
@@ -59,14 +80,27 @@ export function guestFacing(
   const confirmed = invitation.guests.filter((row) => row.status === 'yes');
   const seat =
     guest && invitation.seating?.finalized ? findSeat(invitation.seating, guest.id) : null;
+  const photo = imageSource(invitation.id, invitation.updatedAt, invitation.card.photo, 'photo');
+  const portrait = imageSource(
+    invitation.id,
+    invitation.updatedAt,
+    invitation.card.portrait ?? null,
+    'portrait',
+  );
+  const backdropImage = imageSource(
+    invitation.id,
+    invitation.updatedAt,
+    invitation.backdrop?.image ?? null,
+    'backdrop',
+  );
 
   return {
     id: invitation.id,
     designSlug: invitation.designSlug,
     title: invitation.title,
-    card: invitation.card,
+    card: { ...invitation.card, photo, portrait },
     envelope: invitation.envelope,
-    backdrop: invitation.backdrop,
+    backdrop: { ...invitation.backdrop, image: backdropImage },
     event: invitation.event,
     settings: invitation.settings,
     page: invitation.page,
