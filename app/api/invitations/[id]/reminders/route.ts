@@ -59,6 +59,21 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   });
 }
 
+/**
+ * Sends every reminder whose time has passed. This is the only path that sends a
+ * due reminder: opening the dashboard used to do it, so a page view (or a
+ * prefetch of the link) could send messages and rewrite the invitation.
+ */
+export async function PUT(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const invitation = await managed(id);
+  if (!invitation) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const origin = request.headers.get('origin') ?? new URL(request.url).origin;
+  const updated = await runDueReminders(invitation, origin);
+  return NextResponse.json({ reminders: updated.reminders ?? [] });
+}
+
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const invitation = await managed(id);

@@ -134,6 +134,7 @@ export default function HostDashboard({
   const [reminderAudience, setReminderAudience] = useState<ReminderAudience>('pending');
   const [reminderChannel, setReminderChannel] = useState<'email' | 'text'>('email');
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [dueBusy, setDueBusy] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [reminderNote, setReminderNote] = useState<string | null>(null);
 
@@ -220,6 +221,11 @@ export default function HostDashboard({
   }, [guests]);
 
   const reminderReach = reminderRecipients(guests, reminderAudience, reminderChannel).length;
+  // Nothing is sent by opening this page: due reminders wait for the button below.
+  const dueReminders = reminders.filter(
+    (reminder) =>
+      reminder.status === 'scheduled' && new Date(reminder.sendAt).getTime() <= Date.now(),
+  );
 
   // Texting only ever reaches guests with a number and a tick.
   const consented = guests.filter((g) => g.phone && g.smsConsent);
@@ -339,6 +345,27 @@ export default function HostDashboard({
       setReminderError('Network problem — the reminder was not saved.');
     } finally {
       setReminderBusy(false);
+    }
+  }
+
+  async function sendDueReminders() {
+    setDueBusy(true);
+    setReminderError(null);
+    setReminderNote(null);
+    try {
+      // A request of its own, so it is a deliberate send rather than a page load.
+      const res = await fetch(`/api/invitations/${inv.id}/reminders`, { method: 'PUT' });
+      const data = await res.json();
+      if (!res.ok) {
+        setReminderError(data?.error ?? 'Those reminders did not send.');
+      } else {
+        setReminders(data.reminders ?? []);
+        setReminderNote('Due reminders sent. The result is in the list below.');
+      }
+    } catch {
+      setReminderError('Network problem — no reminders were sent.');
+    } finally {
+      setDueBusy(false);
     }
   }
 
@@ -1233,7 +1260,8 @@ export default function HostDashboard({
           </div>
           <p className="panel-note">
             Nudge only the people who owe a reply. There is no background server here, so a reminder
-            that comes due is sent the next time a host opens this dashboard — or press “Send now”.
+            that comes due waits for you: press “Send due reminders”, or use “Send now” to send one
+            straight away.
           </p>
 
           <div className="reminder-form">
@@ -1274,8 +1302,19 @@ export default function HostDashboard({
           </div>
 
           <div className="row-actions">
+            {dueReminders.length ? (
+              <button
+                className="btn btn-primary"
+                disabled={dueBusy}
+                onClick={() => sendDueReminders()}
+              >
+                {dueBusy
+                  ? 'Sending…'
+                  : `Send ${dueReminders.length} due reminder${dueReminders.length === 1 ? '' : 's'}`}
+              </button>
+            ) : null}
             <button
-              className="btn btn-primary"
+              className="btn btn-ghost"
               disabled={reminderBusy}
               onClick={() => scheduleReminder(false)}
             >
