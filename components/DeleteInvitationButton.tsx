@@ -46,8 +46,8 @@ export default function DeleteInvitationButton({
 
   return (
     <span className="delete-confirm">
-      <button className="btn btn-danger btn-small" onClick={remove} >
-        `Delete “${title.slice(0, 28)}${title.length > 28 ? '…' : ''}”`
+      <button className="btn btn-danger btn-small" onClick={remove}>
+        Delete “{title.slice(0, 28)}{title.length > 28 ? '…' : ''}”
       </button>
       <button className="btn btn-ghost btn-small" onClick={() => setArmed(false)}>
         Keep
