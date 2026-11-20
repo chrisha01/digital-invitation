@@ -64,6 +64,12 @@ npm run db:local:start  # start on 127.0.0.1:5544 by hand (npm run dev does this
 npm run db:local:stop   # stop; data stays in .localdb/data
 ```
 
+Photos uploaded before the editor started downscaling them are still stored at camera size.
+`npm run db:shrink-images` re-encodes those inline pictures in place (1400px on the long edge,
+within a 300 kB budget, `--dry-run` to preview), which is what makes an old invitation as light
+as a new one. It bumps each rewritten invitation's `updatedAt` so the photo route's cache-busting
+version changes; that also moves it to the top of the "recently edited" order.
+
 `npm run dev` starts the bundled server when nothing is listening on port 5544, and carries on
 untouched when `.localdb/` is absent. `.localdb/postgres.log` holds the server log, and the Neon
 connection string stays in `.env` as a commented `# NEON_DATABASE_URL=` line, so the two switches
