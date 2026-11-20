@@ -317,10 +317,17 @@ button {
   line-height: 1.4;
 }
 
+/* Two date pickers side by side need roughly 210px each, and a native
+   datetime-local refuses to shrink below its own text. Let the pair fall back
+   to one column on a narrow panel instead of spilling past its edge. */
 .grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
   gap: 12px;
+}
+
+.grid-2 > * {
+  min-width: 0;
 }
 
 .row-actions {
