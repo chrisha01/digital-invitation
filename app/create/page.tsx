@@ -28,9 +28,8 @@ export default async function CreatePage({
     return <Editor initial={existing} />;
   }
 
-  // Starting is a click, not a side effect of viewing this page: rendering a GET
-  // used to insert an invitation, so a prefetch, a refresh or a second click
-  // left duplicates behind.
+  // Viewing this page writes nothing: the invitation is created by the button,
+  // so a prefetch, a refresh or a return here cannot leave duplicates behind.
   return (
     <main className="m-page">
       <header className="m-head">
@@ -40,8 +39,8 @@ export default async function CreatePage({
 
       <div className="m-panel">
         <h2>{design ? 'Your chosen design' : 'A new card'}</h2>
-        <p>Starting creates the invitation and opens it straight away. Nothing is sent until you share it.</p>
-        <StartInvitation design={design} destination="editor" busyLabel="Starting…">
+        <p>Nothing is sent until you share it, so start whenever you are ready.</p>
+        <StartInvitation design={design} hrefPrefix="/create?id=">
           Start the card
         </StartInvitation>
       </div>

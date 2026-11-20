@@ -694,18 +694,6 @@ input[type='range'] {
   display: block;
 }
 
-/* The gallery entries are buttons now: starting a card posts instead of
-   following a link, which used to create an invitation on page prefetch. */
-button.gallery-item {
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-
 .gallery-card {
   box-shadow: var(--shadow-card);
   border-radius: 3px;
