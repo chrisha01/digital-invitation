@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BrandMark from '@/components/BrandMark';
 import DeleteInvitationButton from '@/components/DeleteInvitationButton';
 import SignOutButton from '@/components/SignOutButton';
+import StartInvitation from '@/components/app/StartInvitation';
 import { currentUser } from '@/lib/auth';
 import EnvelopeCard from '@/components/EnvelopeCard';
 import InvitationCard from '@/components/InvitationCard';
@@ -96,9 +97,9 @@ export default async function HomePage({
               Sign in
             </Link>
           )}
-          <Link className="btn btn-primary" href="/create">
+          <StartInvitation destination="editor" busyLabel="Starting…">
             Start an invitation
-          </Link>
+          </StartInvitation>
         </nav>
       </header>
 
@@ -119,9 +120,9 @@ export default async function HomePage({
             <span>Plan your seating</span> · <span>Track RSVPs</span> · <span>Send reminders</span>
           </p>
           <div className="hero-actions">
-            <Link className="btn btn-primary btn-large" href="/create">
+            <StartInvitation destination="editor" className="btn btn-primary btn-large" busyLabel="Starting…">
               Create an invitation
-            </Link>
+            </StartInvitation>
             <a className="btn btn-ghost btn-large" href="#designs">
               Browse the designs
             </a>
@@ -360,11 +361,13 @@ export default async function HomePage({
           {shown.map((design) => {
             const preview = buildInvitation(design.slug);
             return (
-              <Link
+              <StartInvitation
                 key={design.slug}
+                design={design.slug}
                 className="gallery-item"
-                href={`/create?design=${design.slug}`}
-                aria-label={`Start with ${design.name}`}
+                ariaLabel={`Start with ${design.name}`}
+                destination="editor"
+                busyLabel="Starting…"
               >
                 <div className="gallery-card">
                   <InvitationCard inv={preview} />
@@ -374,7 +377,7 @@ export default async function HomePage({
                   <strong>{design.name}</strong>
                   <span className="muted small">{design.blurb}</span>
                 </div>
-              </Link>
+              </StartInvitation>
             );
           })}
         </div>
