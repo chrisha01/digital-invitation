@@ -215,6 +215,14 @@ button {
   color: var(--danger);
 }
 
+/* Arming the delete button moves focus to it from a script, which never matches
+   :focus-visible, so the red button sets its own ring instead of relying on the UA
+   default that only a keyboard tab would show. */
+.delete-confirm .btn-danger:focus {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
 .btn-small {
   padding: 6px 12px;
   font-size: 12.5px;
