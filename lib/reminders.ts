@@ -61,9 +61,10 @@ const CLAIM_TIMEOUT_MS = 15 * 60 * 1000;
 
 /**
  * Sends every scheduled reminder whose time has passed. There is no cron in this
- * app, so the host dashboard calls this when it loads.
+ * app, so this runs only when a host asks for it ("Send due reminders"), never
+ * because a page was viewed or prefetched.
  *
- * Opening the dashboard in two tabs must not text everyone twice, so a reminder
+ * Two tabs pressing the button at once must not text everyone twice, so a reminder
  * is first claimed inside the store's queued write. Exactly one request wins the
  * claim and owns the send; any request that loses the race sees the claim and
  * returns without sending. A claim left behind by a crashed send may be retried
