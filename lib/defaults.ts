@@ -182,7 +182,9 @@ export function buildInvitation(designSlug?: string): Invitation {
         type: 'link',
         title: 'Registry',
         body: 'Your presence is the present, but if you insist.',
-        url: 'https://example.com/registry',
+        // No URL on purpose: a seeded placeholder would ship as a dead button to
+        // every guest. The link field fills it in, and the button appears then.
+        url: '',
       },
     ],
     guests: [],

@@ -255,7 +255,7 @@ function BlocksPreview({ inv }: { inv: Invitation }) {
               : null}
             {block.type === 'link' && block.url ? (
               <span className="blocks-preview-link" style={{ color: inv.page.accent }}>
-                Visit link →
+                {block.title.trim() ? `Visit ${block.title.trim()}` : 'Visit link'} →
               </span>
             ) : null}
           </section>
@@ -1624,7 +1624,10 @@ export default function Editor({ initial }: { initial: Invitation }) {
           {section === 'blocks' && (
             <div className="panel-body">
               <h2 className="panel-title">Blocks</h2>
-              <p className="panel-note">Extra sections on the guest page: schedule, notes, links.</p>
+              <p className="panel-note">
+                Extra sections on the guest page: schedule, notes, links. A link block shows its
+                title, its body and one button that opens the link in a new tab.
+              </p>
               {inv.blocks.map((block) => (
                 <div className="block-card" key={block.id}>
                   <div className="grid-2">
@@ -1671,7 +1674,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                     />
                   </Field>
                   {block.type === 'link' ? (
-                    <Field label="Link">
+                    <Field label="Link" hint="The button under the block reads “Visit” plus the title.">
                       <input
                         className="input"
                         value={block.url}

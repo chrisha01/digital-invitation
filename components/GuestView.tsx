@@ -294,7 +294,7 @@ export default function GuestView({
                 ) : null}
                 {block.type === 'link' && block.url ? (
                   <a className="guest-link" href={block.url} target="_blank" rel="noreferrer">
-                    Visit link →
+                    {block.title.trim() ? `Visit ${block.title.trim()}` : 'Visit link'} →
                   </a>
                 ) : null}
               </section>
