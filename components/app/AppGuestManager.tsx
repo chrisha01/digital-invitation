@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import CopyFallback from '@/components/CopyFallback';
+import { useCopy } from '@/components/useCopy';
 import type { Guest, Invitation, RsvpStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<RsvpStatus, string> = {
@@ -22,7 +25,17 @@ async function readGuests(response: Response): Promise<Guest[]> {
 }
 
 /** Guest list, replies and door check-in, sized for the phone. */
-export default function AppGuestManager({ initial }: { initial: Invitation }) {
+export default function AppGuestManager({
+  initial,
+  guestLinks = {},
+  origin = '',
+}: {
+  initial: Invitation;
+  /** Signatures for each guest's personal link, issued by the server. */
+  guestLinks?: Record<string, string>;
+  /** Absolute base for the link, so it can be texted as-is. */
+  origin?: string;
+}) {
   const [guests, setGuests] = useState<Guest[]>(initial.guests);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,6 +43,9 @@ export default function AppGuestManager({ initial }: { initial: Invitation }) {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const { copy: clipboardCopy, outcome: copyOutcome, clear: clearCopy } = useCopy();
+  const router = useRouter();
 
   const counts = useMemo(() => {
     const attending = guests.filter((guest) => guest.status === 'yes').length;
@@ -54,6 +70,9 @@ export default function AppGuestManager({ initial }: { initial: Invitation }) {
       setName('');
       setEmail('');
       setHousehold('');
+      // A new guest's personal link is signed by the server, so refresh to
+      // receive its token.
+      router.refresh();
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : 'Could not add that guest.');
     } finally {
@@ -98,6 +117,18 @@ export default function AppGuestManager({ initial }: { initial: Invitation }) {
       setError(problem instanceof Error ? problem.message : 'That did not save.');
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function copyGuestLink(guest: Guest) {
+    const token = guestLinks[guest.id];
+    if (!token) return;
+    clearCopy();
+    const path = `/i/${initial.id}?g=${encodeURIComponent(guest.id)}&t=${token}`;
+    const result = await clipboardCopy(origin ? `${origin}${path}` : path);
+    if (result?.outcome === 'copied') {
+      setCopied(guest.id);
+      window.setTimeout(() => setCopied(null), 1600);
     }
   }
 
@@ -200,12 +231,30 @@ export default function AppGuestManager({ initial }: { initial: Invitation }) {
                   >
                     {guest.checkedInAt ? 'Checked in ✓' : 'Check in'}
                   </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-small"
+                    disabled={!guestLinks[guest.id]}
+                    aria-label={`Copy ${guest.name}'s personal link`}
+                    onClick={() => void copyGuestLink(guest)}
+                  >
+                    {copied === guest.id ? 'Copied' : 'Copy link'}
+                  </button>
                 </span>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {copyOutcome && copyOutcome.outcome === 'failed' ? (
+        <CopyFallback outcome={copyOutcome} />
+      ) : null}
+
+      <p className="m-note">
+        A personal link opens the invitation with this guest&rsquo;s name on the reply form and
+        their entry pass.
+      </p>
     </main>
   );
 }
