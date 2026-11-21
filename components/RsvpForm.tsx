@@ -140,7 +140,7 @@ export default function RsvpForm({
             className="input"
             value={dietary}
             onChange={(e) => setDietary(e.target.value)}
-            placeholder="Allergies, vegetarian, no pork…"
+            placeholder="Allergies, vegetarian…"
           />
         </label>
         <label className="field">
@@ -151,7 +151,7 @@ export default function RsvpForm({
             className="input"
             value={accessibility}
             onChange={(e) => setAccessibility(e.target.value)}
-            placeholder="Step-free access, seating, quiet room…"
+            placeholder="Step-free access, seating…"
           />
         </label>
       </div>
