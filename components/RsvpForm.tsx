@@ -227,7 +227,7 @@ export default function RsvpForm({
               <input
                 className="input"
                 value={companions[index] ?? ''}
-                placeholder="Optional — helps with the seating plan"
+                placeholder="Optional — helps with seating"
                 onChange={(e) => {
                   const next = [...companions];
                   next[index] = e.target.value;
