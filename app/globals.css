@@ -317,15 +317,18 @@ button {
   line-height: 1.4;
 }
 
-/* Two date pickers side by side need roughly 210px each, and a native
-   datetime-local refuses to shrink below its own text. Cap the pair at a
-   compact width so the fields stay aligned with their labels instead of
-   stretching across a wide panel with the picker icon stranded at the far
-   edge, and let them fall back to one column on a narrow panel. */
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 220px));
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+/* A native datetime-local needs about 240px for "09/11/2027 07:00 PM" and will
+   not shrink below its own text. The pair fills the panel so its right edge
+   lines up with the single-column fields above and below, and drops to one
+   full-width column when the panel is too narrow for two pickers. */
+.grid-2.date-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
 }
 
 .grid-2 > * {

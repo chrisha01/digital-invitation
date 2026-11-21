@@ -1320,7 +1320,7 @@ export default function Editor({ initial }: { initial: Invitation }) {
                   }
                 />
               </Field>
-              <div className="grid-2">
+              <div className="grid-2 date-row">
                 <Field label="Starts">
                   <input
                     className="input"
