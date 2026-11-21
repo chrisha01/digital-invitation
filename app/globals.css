@@ -335,6 +335,15 @@ button {
   min-width: 0;
 }
 
+/* Half of a phone's width is too tight for a name and an email address. Those
+   pairs stack into one full-width column on a phone and stay side by side
+   from tablet width up. */
+@media (max-width: 560px) {
+  .grid-2.stack-phone {
+    grid-template-columns: 1fr;
+  }
+}
+
 .row-actions {
   display: flex;
   gap: 8px;

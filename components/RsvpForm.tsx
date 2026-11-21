@@ -101,7 +101,7 @@ export default function RsvpForm({
   return (
     <form className="rsvp-card" onSubmit={submit}>
       <h3>{guest && guest.status !== 'invited' ? 'Your reply' : 'Will you join us?'}</h3>
-      <div className="grid-2">
+      <div className="grid-2 stack-phone">
         <label className="field">
           <span className="field-label">Your name</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -131,7 +131,7 @@ export default function RsvpForm({
         <span className="field-hint">Helps the hosts group your party and plan the seating.</span>
       </label>
 
-      <div className="grid-2">
+      <div className="grid-2 stack-phone">
         <label className="field">
           <span className="field-label">
             Dietary needs <span className="muted">(optional)</span>
