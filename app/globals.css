@@ -318,11 +318,13 @@ button {
 }
 
 /* Two date pickers side by side need roughly 210px each, and a native
-   datetime-local refuses to shrink below its own text. Let the pair fall back
-   to one column on a narrow panel instead of spilling past its edge. */
+   datetime-local refuses to shrink below its own text. Cap the pair at a
+   compact width so the fields stay aligned with their labels instead of
+   stretching across a wide panel with the picker icon stranded at the far
+   edge, and let them fall back to one column on a narrow panel. */
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 220px));
   gap: 12px;
 }
 
