@@ -278,7 +278,7 @@ export default function CheckInPanel({ inv }: { inv: Invitation }) {
                 className="input mono"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="Paste a pass code, or type a name below"
+                placeholder="Pass code"
                 aria-label="Pass code"
               />
               <button className="btn btn-ghost" disabled={!code.trim()}>

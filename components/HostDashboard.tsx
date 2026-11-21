@@ -989,7 +989,7 @@ export default function HostDashboard({
               type="search"
               value={guestQuery}
               onChange={(e) => setGuestQuery(e.target.value)}
-              placeholder="Search name, household, email or phone"
+              placeholder="Name, household or email"
               aria-label="Search guests"
             />
             <div className="seg guest-filter" role="group" aria-label="Filter by reply">
@@ -1422,7 +1422,7 @@ export default function HostDashboard({
             rows={3}
             maxLength={480}
             value={textBody}
-            placeholder="e.g. Doors at six — the lane is closed, so park on Marlow."
+            placeholder="e.g. Doors at six — park nearby."
             onChange={(e) => {
               setTextBody(e.target.value);
               setTextArmed(false);
@@ -1550,7 +1550,7 @@ export default function HostDashboard({
                 rows={5}
                 maxLength={4000}
                 value={emailBody}
-                placeholder="e.g. Doors at six — the lane is closed, so park on Marlow."
+                placeholder="e.g. Doors at six — park nearby."
                 onChange={(e) => {
                   setEmailBody(e.target.value);
                   setEmailArmed(false);
