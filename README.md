@@ -25,11 +25,26 @@ One command checks the repo:
 npm run check      # tsc --noEmit && eslint . && vitest run
 npm run lint       # ESLint only (next/core-web-vitals)
 npm test           # the reply-rule tests only
+npm run test:db    # route and authorization tests, against a real Postgres
 ```
 
-The suite covers the §4 rules in `lib/rsvp-rules.ts` — reply identity, party size, clamping,
-capacity and the deadline gate. It imports the rules directly, so it needs no server and no
-database.
+The first suite covers the §4 rules in `lib/rsvp-rules.ts` — reply identity, party size,
+clamping, capacity and the deadline gate. It imports the rules directly, so it needs no server
+and no database.
+
+`npm run test:db` is the other half: it calls the real guest page and RSVP route against
+Postgres and checks who is allowed in — a signed personal link, a bare guest id that proves
+nothing, a token minted for a different invitation, an unknown id, and replies that are closed
+or past the deadline. It empties the `invitations` table, so it only runs against a database
+whose name ends in `_test` and refuses anything else:
+
+```bash
+createdb gatherly_test
+DATABASE_URL=postgresql://localhost/gatherly_test npm run db:migrate
+DATABASE_URL=postgresql://localhost/gatherly_test npm run test:db
+```
+
+CI runs it in the `integration` job, which starts a Postgres service and migrates it first.
 
 ## Where things are
 
@@ -52,7 +67,9 @@ database.
 | `lib/rsvp-rules.ts` | Reply identity, party size, capacity and deadline rules (pure, tested) |
 | `lib/checkin.ts` | Pass codes, scan parsing and door headcounts |
 | `lib/reminders.ts` | Scheduled RSVP nudges, with a claim so a send never doubles |
-| `tests/` | Vitest tests for the §4 rules |
+| `tests/` | Vitest tests for the §4 rules and the share helpers |
+| `tests/db/` | Guest page and RSVP route tests, run against Postgres |
+| `vitest.db.config.ts` | Config for the database suite (`npm run test:db`) |
 | `eslint.config.mjs` | Flat ESLint config (`next/core-web-vitals`) |
 | `db/migrations/` | SQL migrations, applied in order |
 | `lib/auth.ts` | Accounts, password hashing, signed session cookies |

@@ -7,6 +7,7 @@
     "dev": "next dev -p 3210",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.db.config.ts",
     "check": "tsc --noEmit && eslint . && vitest run",
     "build": "next build",
     "start": "next start -p 3210",

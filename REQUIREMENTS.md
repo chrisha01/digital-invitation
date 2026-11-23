@@ -311,7 +311,9 @@ images (S3-compatible); rate limiting on sign-in, sign-up, reset, uploads and th
 endpoint; password reset by email.
 
 **[built]** One check command: `npm run check` runs `tsc --noEmit`, ESLint (`next/core-web-vitals`)
-and the Vitest suite for the §4 reply rules.
+and the Vitest suite for the §4 reply rules and the share helpers. `npm run test:db` is separate and
+needs Postgres: it drives the real guest page and RSVP route for personal-link access, unknown ids
+and closed replies.
 
 **[spec]** Payment for premium elements; print; audit log of answer changes; editor undo/redo;
 localisation; a cross-browser and mobile-device test matrix.
@@ -385,8 +387,14 @@ Automated (`npm run check`):
 - `npx tsc --noEmit` — clean.
 - `eslint .` — 0 errors. One warning remains (`react-hooks/exhaustive-deps` in
   `components/SeatingPlanEditor.tsx`), tracked rather than silenced.
-- `vitest run` — 21 tests over the §4 reply rules: identity order, ambiguity, party size, clamping,
-  clearing on decline, capacity boundaries and the disabled/past-deadline gates.
+- `vitest run` — 38 tests over the §4 reply rules (identity order, ambiguity, party size, clamping,
+  clearing on decline, capacity boundaries, the disabled/past-deadline gates) and the share helpers.
+- `npm run test:db` (Vitest, against a disposable `_test` database) — 15 route tests: the guest page
+  answers an unknown id with a 404, a signed personal link gets its guest, pass and reply token,
+  an unsigned or cross-invitation token does not, an anonymous visitor receives only the projected
+  card (no guest list, emails or messages), and the RSVP endpoint returns 404 for an unknown id,
+  403 for closed or past-deadline replies without touching the row, writes the row a signed link
+  names, and creates a new row rather than claiming one from a bare guest id.
 
 Manual and API checks (run against the local Postgres and the dev server):
 
