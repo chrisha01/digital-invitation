@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
+import { siteUrl } from '@/lib/share';
 import './globals.css';
 
 export const metadata: Metadata = {
+  // Previews need absolute URLs; APP_URL is the origin the app is served from.
+  metadataBase: siteUrl(),
   title: 'Gatherly — online invitations, properly dressed',
   applicationName: 'Gatherly',
   description:

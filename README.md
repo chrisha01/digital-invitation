@@ -169,6 +169,14 @@ the last 24 hours are always kept, so a sweep cannot race an upload being saved.
 `job_runs` keeps `JOB_RUNS_RETENTION_DAYS` (default 30) of history; each sweep prunes anything
 older, and the row it just wrote is never pruned.
 
+## Link previews
+
+A guest link unfurls in WhatsApp, iMessage and Slack with the event title, the host, the date and
+venue, a clipped line of the description, and a 1200×630 picture drawn in the invitation's own
+colours (`/i/<id>/opengraph-image`). Set `APP_URL` to the public origin so `og:url` is absolute;
+without it the tags still resolve, but that one field is left out. Messaging apps cache a preview
+against the URL, so an edit may not refresh a link that was already pasted.
+
 ## Sending updates
 
 Email and text go out through a provider; this app never runs a mail server.

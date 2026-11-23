@@ -1,5 +1,6 @@
+import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { INVITATION_LIST_TAG, listInvitations } from './store';
+import { INVITATION_LIST_TAG, getInvitation, listInvitations } from './store';
 import type { InvitationSummary } from './types';
 
 /**
@@ -22,3 +23,13 @@ export const cachedInvitations = unstable_cache(
   ['invitation-list'],
   { tags: [INVITATION_LIST_TAG], revalidate: CACHE_SECONDS },
 );
+
+/**
+ * One document read per request.
+ *
+ * A guest page needs the same invitation twice — once for its link preview and
+ * once to render the card — and before this each half queued its own query.
+ * React's cache is scoped to the request, so the two callers share one read and
+ * a later visitor is never handed a stale document.
+ */
+export const invitationForRequest = cache(getInvitation);

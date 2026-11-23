@@ -124,6 +124,7 @@ unimplemented.
 | P6 | Guest list is shown publicly only when the host enables it. |
 | P7 | A guest with a personal link sees their own name on the envelope and the page; a shared link asks who is replying. |
 | P8 | The guest page is a projection: it carries the card, event, page style and blocks, never the guest list or replies. |
+| P9 | A pasted guest link unfurls with the event title, host, date and place, a clipped line of the description, and a 1200×630 preview image drawn in the card's own palette. |
 
 ### 3.7 RSVP and guest management **[built]**
 
@@ -393,6 +394,9 @@ Manual and API checks (run against the local Postgres and the dev server):
 - `POST` RSVP (accept, plus-ones, note) → 200 and persisted; `POST` host guest → 200.
 - `PUT` invitation with a changed title → 200, **guest list preserved (2 guests)**.
 - `PATCH` guest status → 200.
+- Link preview: `/i/<id>` served `og:`/`twitter:` tags with the event title, host and a clipped
+  description; `/i/<id>/opengraph-image` returned a 1200×630 PNG for a red card, a pale card, a
+  two-line title and an unknown id.
 - Browser: card renders at 5:7 with all 8 lines inside the card and fonts applied; envelope renders
   at 1.52:1 with liner, stamp and name; drag moved a line 60×40 px → +15.3% / +7.3% (correct
   percentage maths) and triggered autosave; guest flow envelope → flap → card rising through the
