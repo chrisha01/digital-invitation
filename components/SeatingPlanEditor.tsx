@@ -122,7 +122,9 @@ export default function SeatingPlanEditor({ inv }: { inv: Invitation }) {
   const stored = useRef<string | null>(null);
   const flushed = useRef<string | null>(null);
 
-  const items = plan.items ?? [];
+  // Memoised so a plan without venue items keeps one array across renders:
+  // a fresh `[]` each time would retrigger the save effect forever.
+  const items = useMemo(() => plan.items ?? [], [plan.items]);
   const attending = useMemo(() => inv.guests.filter((guest) => guest.status === 'yes'), [inv.guests]);
   const seated = useMemo(() => seatedGuestIds(plan), [plan]);
   const unseated = attending.filter((guest) => !seated.has(guest.id));
