@@ -2,25 +2,18 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DESIGNS } from '@/lib/designs';
+import { PLANS } from '@/lib/plans';
 
 /**
- * The price list is copy, not code: nothing in the app reads it, and nothing in
- * the app gates a plan. These tests hold it to that — every claim here is either
- * true of the build or removed, and adding a paywall breaks the second block.
+ * The price list is copy, not code: the app renders it and nothing gates on it.
+ * These tests hold it to that — every claim here is either true of the build or
+ * removed, and adding a paywall breaks the second block.
  */
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (path: string) => readFileSync(`${root}${path}`, 'utf8');
 
 const home = read('app/page.tsx');
-
-/** The three tiers, from `const PLANS` to its closing `];`. */
-function plansBlock(source: string): string {
-  const start = source.indexOf('const PLANS');
-  const end = source.indexOf('\n];', start);
-  if (start < 0 || end < 0) throw new Error('the price list moved; update this test with it');
-  return source.slice(start, end);
-}
 
 /** The `#pricing` section, nav links and footers excluded. */
 function pricingSection(source: string): string {
@@ -30,8 +23,12 @@ function pricingSection(source: string): string {
   return source.slice(start, end);
 }
 
-const plans = plansBlock(home);
 const section = pricingSection(home);
+
+/** Every word the cards put in front of a reader. */
+const planText = PLANS.map((plan) =>
+  [plan.name, plan.amount, plan.cadence, plan.blurb, plan.cta, ...plan.features].join('\n'),
+).join('\n\n');
 
 /** Words that promise a boundary the app never draws. */
 const LIMIT_CLAIMS = [
@@ -50,28 +47,32 @@ const LIMIT_CLAIMS = [
 
 describe('the published price list', () => {
   it('publishes three tiers, in pounds, priced per event', () => {
-    // The cards are one `.map()` over PLANS, so the tiers are counted in the data.
-    expect(plans.match(/^    name: '/gm)?.length).toBe(3);
-    expect(plans.match(/^    features: \[/gm)?.length).toBe(3);
-    for (const amount of ["£0", "£24", "£79"]) expect(plans).toContain(`amount: '${amount}'`);
-    expect(plans.match(/cadence: 'per event'/g)?.length).toBe(2);
+    expect(PLANS).toHaveLength(3);
+    expect(new Set(PLANS.map((plan) => plan.name)).size).toBe(3);
+    expect(PLANS.map((plan) => plan.amount)).toEqual(['£0', '£24', '£79']);
+    expect(PLANS.filter((plan) => plan.cadence === 'per event')).toHaveLength(2);
+    for (const plan of PLANS) {
+      expect(plan.blurb).not.toBe('');
+      expect(plan.cta).not.toBe('');
+      expect(plan.features.length).toBeGreaterThan(0);
+    }
   });
 
   it('promises no limit the build does not enforce', () => {
-    const claimed = LIMIT_CLAIMS.filter((claim) => new RegExp(`\\b${claim}\\b`, 'i').test(plans));
+    const claimed = LIMIT_CLAIMS.filter((claim) => new RegExp(`\\b${claim}\\b`, 'i').test(planText));
     expect(claimed, 'the app caps nothing, so the price list must not say it does').toEqual([]);
   });
 
   it('names the number of designs that actually ships', () => {
-    // Derived from DESIGNS, so a new design cannot leave a stale count behind.
-    expect(plans).toContain('${DESIGNS.length} designs');
-    // And no hard-coded count, which is how it went stale before.
-    expect(plans).not.toMatch(/\b(\d+|two|three|four|five|six|seven|eight|nine|ten|twelve) designs\b/i);
-    expect(DESIGNS.length).toBeGreaterThan(0);
+    // The feature string is built from DESIGNS, so the two cannot drift apart.
+    const named = planText.match(/\b(\d+) designs\b/i)?.[1];
+    expect(named, 'no tier says how many designs ship').toBeDefined();
+    expect(Number(named)).toBe(DESIGNS.length);
   });
 
   it('sends every tier to the same place, where nothing is charged', () => {
-    // One link, shared by all three tiers because they share the map.
+    // One link, shared by all three tiers because the section maps over PLANS.
+    expect(section).toMatch(/\{PLANS\.map\(/);
     expect(section.match(/href="\/create"/g)?.length).toBe(1);
     expect(section).not.toMatch(/checkout|billing|stripe|upgrade|pricing\.com/i);
   });

@@ -7,66 +7,10 @@ import EnvelopeCard from '@/components/EnvelopeCard';
 import InvitationCard from '@/components/InvitationCard';
 import { buildInvitation } from '@/lib/defaults';
 import { DESIGNS } from '@/lib/designs';
+import { PLANS } from '@/lib/plans';
 import { listInvitations, listSharedInvitations } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
-
-/** The published price list. Illustrative only: nothing here is billed. */
-const PLANS: {
-  name: string;
-  amount: string;
-  cadence: string;
-  blurb: string;
-  features: string[];
-  cta: string;
-  featured?: boolean;
-}[] = [
-  {
-    name: 'Note',
-    amount: '£0',
-    cadence: 'to try it',
-    blurb: 'An invitation, from design to replies.',
-    features: [
-      `All ${DESIGNS.length} designs, every font`,
-      'Envelope, liner and stamp',
-      'Shared RSVP link',
-      'Guest list and reply table',
-      'Seating plan',
-      'CSV export of the replies',
-    ],
-    cta: 'Start free',
-  },
-  {
-    name: 'Letter',
-    amount: '£24',
-    cadence: 'per event',
-    blurb: 'For a wedding, or a party with a list.',
-    features: [
-      'Everything in Note',
-      'Plus-ones and household parties',
-      'Signed personal link per guest',
-      'Email and text reminders',
-      'Check-in screen and printed report',
-      'Co-hosts by email',
-    ],
-    cta: 'Start an invitation',
-    featured: true,
-  },
-  {
-    name: 'Suite',
-    amount: '£79',
-    cadence: 'per event',
-    blurb: 'Everything, with the room to match.',
-    features: [
-      'Everything in Letter',
-      'Custom questions on the reply',
-      'Cover photo, framed portrait, backdrop',
-      'Held spare chairs at the table',
-      'Every future design, included',
-    ],
-    cta: 'Start an invitation',
-  },
-];
 
 export default async function HomePage({
   searchParams,
