@@ -27,7 +27,7 @@ const PLANS: {
     cadence: 'to try it',
     blurb: 'An invitation, from design to replies.',
     features: [
-      'All eight designs, every font',
+      `All ${DESIGNS.length} designs, every font`,
       'Envelope, liner and stamp',
       'Shared RSVP link',
       'Guest list and reply table',
