@@ -32,6 +32,9 @@ export default function GlobalError() {
               >
                 Try again
               </button>
+              {/* A full page load, not a router push: the app has already failed
+                  once, so ask the server for a fresh document. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a className="btn btn-ghost btn-large" href="/">
                 Back to the front page
               </a>

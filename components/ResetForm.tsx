@@ -160,9 +160,7 @@ export default function ResetForm({ token, canEmail }: { token?: string; canEmai
         )
       ) : null}
 
-      <button className="btn btn-primary btn-wide" >
-        'Make reset link'
-        </button>
+      <button className="btn btn-primary btn-wide">Make reset link</button>
       <a className="muted small" href="/signin">
         Back to sign in
       </a>

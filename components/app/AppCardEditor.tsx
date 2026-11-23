@@ -91,7 +91,6 @@ export default function AppCardEditor({ initial }: { initial: Invitation }) {
     if (serialized === lastSaved.current) return;
     const timer = setTimeout(() => void saveNow(inv), 700);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inv]);
 
   // The enlarged preview is a modal: Escape closes it, focus starts on Close,

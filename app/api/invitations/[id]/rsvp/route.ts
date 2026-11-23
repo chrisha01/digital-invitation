@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { newId } from '@/lib/defaults';
 import { guestToken, verifyGuestToken } from '@/lib/guest-token';
 import { rateGate } from '@/lib/rate-limit';
+import { clampCount, fitsCapacity, guestForReply, rsvpClosedReason } from '@/lib/rsvp-rules';
 import { mutateInvitation } from '@/lib/store';
-import type { Guest, RsvpStatus } from '@/lib/types';
+import type { RsvpStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,53 +45,6 @@ type Body = {
   companions?: string[];
 };
 
-const clampCount = (value: unknown, min: number, max: number) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return min;
-  return Math.max(min, Math.min(max, Math.round(parsed)));
-};
-
-const partySize = (guest: Guest) =>
-  guest.status === 'yes' ? Math.max(1, guest.adults + guest.children, 1 + guest.plusOnes) : 0;
-
-/**
- * Whose row a reply belongs to, strongest proof first:
- *
- *   1. the guest a signed personal link names;
- *   2. the one row carrying this email address — an ambiguous address matches
- *      nobody, since an invitation holds one row per person;
- *   3. a row the host started with a name and nothing else. Filling in an empty
- *      row is not overwriting anyone's data.
- *
- * A typed name on its own never claims a row: names are public, so matching on
- * one would let any link holder answer for somebody else.
- */
-function guestForReply(
-  guests: Guest[],
-  { name, email, signedId }: { name: string; email: string; signedId: string | null },
-): Guest | undefined {
-  if (signedId) {
-    const signed = guests.find((row) => row.id === signedId);
-    if (signed) return signed;
-  }
-
-  if (email) {
-    const matches = guests.filter(
-      (row) => row.email && row.email.toLowerCase() === email.toLowerCase(),
-    );
-    if (matches.length === 1) return matches[0];
-  }
-
-  const sameName = guests.filter(
-    (row) =>
-      row.name.trim().toLowerCase() === name.toLowerCase() &&
-      !row.email &&
-      row.status === 'invited' &&
-      !row.respondedAt,
-  );
-  return sameName.length === 1 ? sameName[0] : undefined;
-}
-
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
@@ -128,14 +82,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   try {
     const updated = await mutateInvitation(id, (invitation) => {
-      if (!invitation.settings.collectRsvp) {
-        throw new RsvpError('This invitation is not collecting RSVPs.', 403);
-      }
-      if (
-        invitation.settings.deadline &&
-        new Date(invitation.settings.deadline).getTime() < Date.now()
-      ) {
-        throw new RsvpError('RSVPs for this event have closed.', 403);
+      const closed = rsvpClosedReason(invitation);
+      if (closed) {
+        throw new RsvpError(
+          closed === 'disabled'
+            ? 'This invitation is not collecting RSVPs.'
+            : 'RSVPs for this event have closed.',
+          403,
+        );
       }
 
       const answers = Object.fromEntries(
@@ -185,16 +139,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       // renamed and seated in a chair of their own.
       const size = status === 'yes' ? (headcount ? Math.max(1, adults + children) : 1 + plusOnes) : 0;
 
-      if (status === 'yes' && invitation.settings.capacity) {
-        const taken = invitation.guests
-          .filter((candidate) => candidate.id !== guest!.id && candidate.companionOf !== guest!.id)
-          .reduce((sum, candidate) => sum + partySize(candidate), 0);
-        if (taken + size > invitation.settings.capacity) {
-          throw new RsvpError(
-            'Sorry — this event is full. Please reply no or contact the host directly.',
-            409,
-          );
-        }
+      if (status === 'yes' && !fitsCapacity(invitation, guest.id, size)) {
+        throw new RsvpError(
+          'Sorry — this event is full. Please reply no or contact the host directly.',
+          409,
+        );
       }
 
       guest.status = status;

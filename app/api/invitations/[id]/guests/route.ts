@@ -3,6 +3,7 @@ import { canManage } from '@/lib/access';
 import { currentUser } from '@/lib/auth';
 import { newId } from '@/lib/defaults';
 import { guestFromCopy } from '@/lib/guest-restore';
+import { clearParty } from '@/lib/rsvp-rules';
 import { getInvitation, mutateInvitation } from '@/lib/store';
 import type { Guest, Invitation, RsvpStatus } from '@/lib/types';
 
@@ -82,11 +83,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (patch.status && STATUSES.includes(patch.status)) {
       guest.status = patch.status;
       guest.respondedAt = new Date().toISOString();
-      if (patch.status !== 'yes') {
-        guest.plusOnes = 0;
-        guest.adults = 0;
-        guest.children = 0;
-      }
+      if (patch.status !== 'yes') clearParty(guest);
     }
     if (typeof patch.name === 'string') guest.name = patch.name.slice(0, 120);
     if (typeof patch.email === 'string') guest.email = patch.email.slice(0, 200);

@@ -19,6 +19,18 @@ Production build:
 npm run build && npm start
 ```
 
+One command checks the repo:
+
+```bash
+npm run check      # tsc --noEmit && eslint . && vitest run
+npm run lint       # ESLint only (next/core-web-vitals)
+npm test           # the reply-rule tests only
+```
+
+The suite covers the §4 rules in `lib/rsvp-rules.ts` — reply identity, party size, clamping,
+capacity and the deadline gate. It imports the rules directly, so it needs no server and no
+database.
+
 ## Where things are
 
 | Path | What |
@@ -28,12 +40,20 @@ npm run build && npm start
 | `/i/<id>` | What a guest sees: envelope → card → event page → RSVP |
 | `/host/<id>` | Guest list, replies, headcount, CSV export |
 | `/host/<id>/checkin` | Door screen: scan or type a pass, undo, walk-ins |
+| `/host/<id>/checkin/report` | Printable check-in report |
 | `/host/<id>/seating` | Seating plan editor |
+| `/app/*` | Phone-shaped app shell: designs, create, editor, guests, seating, account |
+| `/signin`, `/reset` | Accounts and password reset |
 | `lib/types.ts` | The whole data model |
 | `lib/designs.ts` | The design catalogue and its palettes |
 | `lib/motifs.tsx` | Original decorative SVG artwork |
 | `lib/defaults.ts` | Sample wording and invitation factory |
 | `lib/store.ts` | Postgres store — one document row per invitation |
+| `lib/rsvp-rules.ts` | Reply identity, party size, capacity and deadline rules (pure, tested) |
+| `lib/checkin.ts` | Pass codes, scan parsing and door headcounts |
+| `lib/reminders.ts` | Scheduled RSVP nudges, with a claim so a send never doubles |
+| `tests/` | Vitest tests for the §4 rules |
+| `eslint.config.mjs` | Flat ESLint config (`next/core-web-vitals`) |
 | `db/migrations/` | SQL migrations, applied in order |
 | `lib/auth.ts` | Accounts, password hashing, signed session cookies |
 | `components/` | Editor, card renderer, envelope, guest view, RSVP form, host dashboard |
@@ -149,6 +169,39 @@ the last 24 hours are always kept, so a sweep cannot race an upload being saved.
 `job_runs` keeps `JOB_RUNS_RETENTION_DAYS` (default 30) of history; each sweep prunes anything
 older, and the row it just wrote is never pruned.
 
+## Sending updates
+
+Email and text go out through a provider; this app never runs a mail server.
+
+```bash
+# email — Resend, or any JSON gateway
+RESEND_API_KEY=…
+EMAIL_FROM=Gatherly <hello@example.com>
+# or
+EMAIL_API_URL=https://…
+EMAIL_API_KEY=…
+EMAIL_FROM=…
+
+# text — Twilio, or any JSON gateway
+TWILIO_ACCOUNT_SID=…
+TWILIO_AUTH_TOKEN=…
+TWILIO_FROM_NUMBER=+1…
+# or
+SMS_API_URL=https://…
+SMS_API_KEY=…
+SMS_FROM=+1…
+```
+
+With none of these set the dashboard still composes a message and records the attempt as
+`not-configured`, naming the variables it needs; nobody is messaged and the shared link keeps
+working.
+
+Texts only reach guests who gave a number **and** ticked consent. RSVP reminders (pending, maybe or
+all guests) are stored on the invitation and sent when a host presses “Send due reminders” or “Send
+now” — opening the dashboard or prefetching it never sends anything. A reminder is claimed before
+it is sent, so two tabs cannot message everyone twice; a crashed send’s claim expires after 15
+minutes. The scheduler below sweeps images only; it does not send reminders.
+
 ## Deployment
 
 The app and the scheduler are separate processes, and both want a supervisor:
@@ -188,8 +241,10 @@ invitation therefore looks identical as a 265 px gallery thumbnail, a 392 px edi
 ## Before publishing
 
 Read §7–§9 of `REQUIREMENTS.md`. At minimum: point uploads at a real bucket and migrate the images
-still inlined as data URLs, move the in-memory rate-limit counters to a shared store, and run
-`npm run db:migrate` as part of every deploy.
+still inlined as data URLs, move the in-memory rate-limit counters to a shared store, add the
+security headers `next.config.mjs` does not set (CSP, `X-Content-Type-Options`, HSTS) at the proxy
+or in the Next config, run `npm run check` in CI, and run `npm run db:migrate` as part of every
+deploy.
 
 Password resets are emailed when a mail provider is configured (`RESEND_API_KEY` + `EMAIL_FROM`).
 With no provider the link is only returned in development — production never hands it back.
