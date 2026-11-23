@@ -11,6 +11,63 @@ import { listInvitations, listSharedInvitations } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
+/** The published price list. Illustrative only: nothing here is billed. */
+const PLANS: {
+  name: string;
+  amount: string;
+  cadence: string;
+  blurb: string;
+  features: string[];
+  cta: string;
+  featured?: boolean;
+}[] = [
+  {
+    name: 'Note',
+    amount: '£0',
+    cadence: 'to try it',
+    blurb: 'An invitation, from design to replies.',
+    features: [
+      'All eight designs, every font',
+      'Envelope, liner and stamp',
+      'Shared RSVP link',
+      'Guest list and reply table',
+      'Seating plan',
+      'CSV export of the replies',
+    ],
+    cta: 'Start free',
+  },
+  {
+    name: 'Letter',
+    amount: '£24',
+    cadence: 'per event',
+    blurb: 'For a wedding, or a party with a list.',
+    features: [
+      'Everything in Note',
+      'Plus-ones and household parties',
+      'Signed personal link per guest',
+      'Email and text reminders',
+      'Check-in screen and printed report',
+      'Co-hosts by email',
+    ],
+    cta: 'Start an invitation',
+    featured: true,
+  },
+  {
+    name: 'Suite',
+    amount: '£79',
+    cadence: 'per event',
+    blurb: 'Everything, with the room to match.',
+    features: [
+      'Everything in Letter',
+      'Custom questions on the reply',
+      'Cover photo, framed portrait, backdrop',
+      'Held spare chairs at the table',
+      'Every future design, included',
+    ],
+    cta: 'Start an invitation',
+  },
+];
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -84,6 +141,7 @@ export default async function HomePage({
         <nav className="home-links">
           <a href="#designs">Designs</a>
           <a href="#how">How it works</a>
+          <a href="#pricing">Pricing</a>
           {saved.length ? <a href="#yours">Your invitations</a> : null}
           <Link href="/app">Try the app</Link>
           {user ? (
@@ -408,6 +466,49 @@ export default async function HomePage({
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="section pricing" id="pricing">
+        <div className="section-head">
+          <h2>What it costs</h2>
+          <span className="muted small">Illustrative prices · no subscription</span>
+        </div>
+
+        <div className="pricing-grid">
+          {PLANS.map((plan) => (
+            <article
+              key={plan.name}
+              className={`price-card${plan.featured ? ' is-featured' : ''}`}
+            >
+              <div className="price-head">
+                <h3>{plan.name}</h3>
+                {plan.featured ? <span className="price-flag">Recommended</span> : null}
+              </div>
+              <p className="price-figure">
+                <span className="price-amount">{plan.amount}</span>
+                <span className="price-cadence">{plan.cadence}</span>
+              </p>
+              <p className="price-blurb">{plan.blurb}</p>
+              <ul className="price-features">
+                {plan.features.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
+              <Link
+                className={`btn ${plan.featured ? 'btn-primary' : 'btn-ghost'} btn-small`}
+                href="/create"
+              >
+                {plan.cta}
+              </Link>
+            </article>
+          ))}
+        </div>
+
+        <p className="pricing-note muted small">
+          The tiers are a price list for a hosted Gatherly, not a gate. This build takes no payment
+          and enforces no plan, so every invitation you make here has all of it — nothing is
+          counted, capped or held back.
+        </p>
       </section>
 
       <footer className="home-footer">

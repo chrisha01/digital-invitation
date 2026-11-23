@@ -315,7 +315,8 @@ and the Vitest suite for the §4 reply rules and the share helpers. `npm run tes
 needs Postgres: it drives the real guest page and RSVP route for personal-link access, unknown ids
 and closed replies.
 
-**[spec]** Payment for premium elements; print; audit log of answer changes; editor undo/redo;
+**[spec]** Payment for premium elements — the landing page publishes an illustrative price list at
+`/#pricing`, and nothing is charged or enforced; print; audit log of answer changes; editor undo/redo;
 localisation; a cross-browser and mobile-device test matrix.
 
 ---

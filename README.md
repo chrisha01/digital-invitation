@@ -50,7 +50,7 @@ CI runs it in the `integration` job, which starts a Postgres service and migrate
 
 | Path | What |
 | --- | --- |
-| `/` | Design gallery + saved invitations |
+| `/` | Design gallery, how it works, the price list (`#pricing`) + saved invitations |
 | `/create` | Editor — design, text, colours, envelope, backdrop, details, RSVP settings, page style, blocks |
 | `/i/<id>` | What a guest sees: envelope → card → event page → RSVP |
 | `/host/<id>` | Guest list, replies, headcount, CSV export |
