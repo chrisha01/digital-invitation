@@ -1,7 +1,11 @@
 import { DESIGNS } from './designs';
+import { PLAN_CAPS, PLAN_LABELS, type PlanKey } from './plan-caps';
 
 export type Plan = {
+  key: PlanKey;
   name: string;
+  /** Invitations an account on this plan may hold; the server reads the same number. */
+  cap: number;
   amount: string;
   cadence: string;
   blurb: string;
@@ -11,52 +15,54 @@ export type Plan = {
 };
 
 /**
- * The published price list. Illustrative only: nothing here is billed, and
- * nothing in the app reads a plan to decide what an account may do.
+ * The published price list. The prices are illustrative — nothing is charged
+ * and there is no checkout — but the capacity each tier names is the capacity
+ * the create route enforces (lib/plan-caps.ts).
  */
 export const PLANS: Plan[] = [
   {
-    name: 'Note',
+    key: 'note',
+    name: PLAN_LABELS.note,
+    cap: PLAN_CAPS.note,
     amount: '£0',
     cadence: 'to try it',
-    blurb: 'An invitation, from design to replies.',
+    blurb: 'One invitation, from design to replies.',
     features: [
+      '1 invitation at a time',
       `All ${DESIGNS.length} designs, every font`,
       'Envelope, liner and stamp',
       'Shared RSVP link',
-      'Guest list and reply table',
+      'Guest list, reply table and CSV export',
       'Seating plan',
-      'CSV export of the replies',
     ],
     cta: 'Start free',
   },
   {
-    name: 'Letter',
+    key: 'letter',
+    name: PLAN_LABELS.letter,
+    cap: PLAN_CAPS.letter,
     amount: '£24',
-    cadence: 'per event',
+    cadence: 'per account',
     blurb: 'For a wedding, or a party with a list.',
     features: [
+      '3 invitations at a time',
       'Everything in Note',
-      'Plus-ones and household parties',
-      'Signed personal link per guest',
-      'Email and text reminders',
-      'Check-in screen and printed report',
-      'Co-hosts by email',
+      'Room for the next event before the last is over',
     ],
     cta: 'Start an invitation',
     featured: true,
   },
   {
-    name: 'Suite',
+    key: 'suite',
+    name: PLAN_LABELS.suite,
+    cap: PLAN_CAPS.suite,
     amount: '£79',
-    cadence: 'per event',
-    blurb: 'Everything, with the room to match.',
+    cadence: 'per account',
+    blurb: 'For someone who hosts all year.',
     features: [
+      '10 invitations at a time',
       'Everything in Letter',
-      'Custom questions on the reply',
-      'Cover photo, framed portrait, backdrop',
-      'Held spare chairs at the table',
-      'Every future design, included',
+      'Room for a whole season of events',
     ],
     cta: 'Start an invitation',
   },

@@ -17,6 +17,7 @@
     "db:use:neon": "node scripts/db-use.mjs neon",
     "db:export": "node --env-file-if-exists=.env scripts/db-export.mjs",
     "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
+    "db:plan": "node --env-file-if-exists=.env scripts/db-plan.mjs",
     "db:import": "node --env-file-if-exists=.env scripts/db-import.mjs",
     "db:import-users": "node --env-file-if-exists=.env scripts/db-import-users.mjs",
     "db:sweep-images": "node --env-file-if-exists=.env scripts/db-sweep-images.mjs",

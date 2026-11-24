@@ -418,6 +418,10 @@ export default async function HomePage({
           <span className="muted small">Illustrative prices · no subscription</span>
         </div>
 
+        <p className="pricing-lede muted small">
+          Every tier is the whole app — plans differ in how many invitations you can hold.
+        </p>
+
         <div className="pricing-grid">
           {PLANS.map((plan) => (
             <article
@@ -449,9 +453,10 @@ export default async function HomePage({
         </div>
 
         <p className="pricing-note muted small">
-          The tiers are a price list for a hosted Gatherly, not a gate. This build takes no payment
-          and enforces no plan, so every invitation you make here has all of it — nothing is
-          counted, capped or held back.
+          The tiers are a price list for a hosted Gatherly, and this build enforces the one boundary
+          it can: a plan caps how many invitations an account holds. Nothing is charged here —
+          plans are granted by hand — so every account starts on Note with one invitation, and the
+          rest of the app is the same on all three.
         </p>
       </section>
 

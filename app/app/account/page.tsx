@@ -1,5 +1,6 @@
 import SignOutButton from '@/components/SignOutButton';
 import { requireUser } from '@/lib/auth';
+import { PLAN_LABELS, planCap, planKey } from '@/lib/plan-caps';
 import { listInvitations } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,10 @@ export default async function AppAccountPage() {
   const user = await requireUser('/app/account');
   const saved = await listInvitations(user.id);
 
+  const plan = planKey(user.plan);
+  const cap = planCap(plan);
+  const atCap = saved.length >= cap;
+
   return (
     <main className="m-page">
       <header className="m-head">
@@ -15,9 +20,18 @@ export default async function AppAccountPage() {
       </header>
 
       <div className="m-panel">
+        <p className="plan-badge">{PLAN_LABELS[plan]} plan</p>
         <h2>{user.name}</h2>
         <p>{user.email}</p>
-        <p className="m-meta">{saved.length === 1 ? '1 invitation' : `${saved.length} invitations`}</p>
+        <p className="m-meta">
+          {saved.length} of {cap} {cap === 1 ? 'invitation' : 'invitations'} used
+        </p>
+        {atCap ? (
+          <p>
+            That is everything this plan holds. Delete an invitation to start another, or ask for a
+            larger plan.
+          </p>
+        ) : null}
         {saved.length === 0 ? (
           <p className="filter-empty">
             No invitations yet. Start one from a design and it will show up in your list.

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import DeleteInvitationButton from '@/components/DeleteInvitationButton';
 import InvitationCard from '@/components/InvitationCard';
-import { canManage } from '@/lib/access';
+import { canManage, isOwner } from '@/lib/access';
 import { requireUser } from '@/lib/auth';
 import { formatWhen } from '@/lib/dates';
 import { getInvitation } from '@/lib/store';
@@ -22,6 +23,8 @@ export default async function AppInvitationPage({ params }: { params: Promise<{ 
     getInvitation(id),
   ]);
   if (!inv || !canManage(inv, user)) notFound();
+  // Co-hosts can edit, but only the owner may delete the invitation itself.
+  const owner = isOwner(inv, user);
 
   const guests = inv.guests ?? [];
   const attending = guests.filter((guest) => guest.status === 'yes').length;
@@ -72,6 +75,14 @@ export default async function AppInvitationPage({ params }: { params: Promise<{ 
         <Link className="btn btn-ghost" href={`/app/i/${inv.id}/guest`}>
           Guest page
         </Link>
+        {owner ? (
+          <DeleteInvitationButton
+            id={inv.id}
+            title={inv.title || inv.event.title}
+            redirectTo="/app"
+            label="Delete invitation"
+          />
+        ) : null}
       </section>
 
       <section className="m-group">

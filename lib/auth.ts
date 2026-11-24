@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getPool } from './db';
+import { planKey, type PlanKey } from './plan-caps';
 
 export const SESSION_COOKIE = 'envelope_session';
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
@@ -17,6 +18,7 @@ type UserRow = {
   password_changed_at: Date;
   reset_hash: string | null;
   reset_expires: string | null;
+  plan: string;
 };
 
 export type SessionUser = {
@@ -25,6 +27,7 @@ export type SessionUser = {
   email: string;
   createdAt: string;
   sessionVersion: string;
+  plan: PlanKey;
 };
 
 const iso = (value: Date | string) => new Date(value).toISOString();
@@ -35,6 +38,8 @@ function toPublic(row: UserRow): SessionUser {
     name: row.name,
     email: row.email,
     createdAt: iso(row.created_at),
+    // No plan, or one this build does not know, is the smallest plan.
+    plan: planKey(row.plan),
     // Accounts made before sessions were versioned were signed with their
     // creation time, so that is what the import stores here too.
     sessionVersion: iso(row.password_changed_at),
@@ -92,6 +97,8 @@ export async function createUser(
     email: email.trim().toLowerCase(),
     createdAt: now.toISOString(),
     sessionVersion: now.toISOString(),
+    // The column's default, spelled out so a create cannot forget it.
+    plan: 'note',
   };
 }
 

@@ -171,6 +171,49 @@ export async function putInvitation(invitation: Invitation): Promise<Invitation>
   return invitation;
 }
 
+/**
+ * Creates an invitation only while the account is under its plan's cap.
+ *
+ * Locking the owner's row first serialises two "Start blank" taps that arrive
+ * together: without it both read `cap - 1` and both insert. An invitation with
+ * no owner (an import from before accounts existed) carries no cap and is
+ * written as before.
+ */
+export async function putInvitationWithinCap(
+  invitation: Invitation,
+  cap: number,
+): Promise<boolean> {
+  const ownerId = invitation.ownerId;
+  if (!ownerId) {
+    await putInvitation(invitation);
+    return true;
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query('begin');
+    await client.query('select 1 from users where id = $1 for update', [ownerId]);
+    const { rows } = await client.query<{ total: number }>(
+      'select count(*)::int as total from invitations where owner_id = $1',
+      [ownerId],
+    );
+    if (rows[0].total >= cap) {
+      await client.query('rollback');
+      return false;
+    }
+
+    await client.query(UPSERT, upsertValues(invitation));
+    await client.query('commit');
+    forgetLists();
+    return true;
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function deleteInvitation(id: string): Promise<void> {
   await getPool().query('delete from invitations where id = $1', [id]);
   forgetLists();

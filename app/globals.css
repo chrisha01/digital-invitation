@@ -4000,6 +4000,22 @@ input[type='range'] {
   color: var(--muted);
 }
 
+.m-panel .plan-badge {
+  align-self: flex-start;
+  margin: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.pricing-lede {
+  margin: 0 0 16px;
+}
+
 .m-note {
   font-size: 12.5px;
   line-height: 1.55;

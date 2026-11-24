@@ -35,7 +35,11 @@ export default function DeleteInvitationButton({
       const res = await fetch(`/api/invitations/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('failed');
       if (redirectTo) {
-        router.push(redirectTo);
+        // Leave the deleted page rather than refreshing it: a refresh of a row
+        // that no longer exists races the push and can bounce straight back.
+        setArmed(false);
+        router.replace(redirectTo);
+        return;
       }
       router.refresh();
     } catch {
