@@ -315,11 +315,16 @@ and the Vitest suite for the §4 reply rules and the share helpers. `npm run tes
 needs Postgres: it drives the real guest page and RSVP route for personal-link access, unknown ids
 and closed replies.
 
-**[spec]** Plans — `users.plan` is `note`, `letter` or `suite` and caps how many invitations an
+**[built]** Plans — `users.plan` is `note`, `letter` or `suite` and caps how many invitations an
 account may hold (1, 3, 10); the create route enforces it and `/app/account` shows the plan and the
-count. Plans are granted by hand (`npm run db:plan -- <email> <plan>`) because there is no checkout;
-the landing page's price list at `/#pricing` says so. Also spec: paid print; audit log of answer
-changes; editor undo/redo; localisation; a cross-browser and mobile-device test matrix.
+count. Letter and Suite are bought once through Stripe Checkout from `/app/account`: the server
+prices the session from `lib/plan-caps.ts`, and only a signature-checked
+`checkout.session.completed` webhook (`/api/stripe/webhook`) raises a plan, writing a `purchases`
+row keyed by the session so a retried delivery cannot upgrade twice. With Stripe unconfigured the
+account page says so and `npm run db:plan -- <email> <plan>` grants a plan by hand.
+
+**[spec]** Paid print; audit log of answer changes; editor undo/redo; localisation; a cross-browser
+and mobile-device test matrix.
 
 ---
 
@@ -332,8 +337,8 @@ infrastructure or commercial agreements rather than design work:
 - Bounce, open and delivery-event tracking. Sends go out through a provider (Twilio or a JSON SMS
   gateway; Resend or a JSON email gateway) and the app only records the counts each API call
   returns; invitations still work as plain shared links when no provider is connected.
-- A coin economy, self-serve checkout and paid print fulfilment. Plans themselves exist (§7) but are
-  granted by hand; the prices on `/#pricing` are illustrative and nothing is charged.
+- A coin economy and paid print fulfilment. Plans themselves are sold (§7) through Stripe
+  Checkout; print stays out.
 - AI "magic" artwork and sticker generation, comment walls, and a public event-discovery feed.
 - Real-time collaboration in the editor.
 

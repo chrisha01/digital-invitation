@@ -1,5 +1,5 @@
 import { DESIGNS } from './designs';
-import { PLAN_CAPS, PLAN_LABELS, type PlanKey } from './plan-caps';
+import { PLAN_CAPS, PLAN_LABELS, PLAN_PRICES, money, type PlanKey } from './plan-caps';
 
 export type Plan = {
   key: PlanKey;
@@ -15,16 +15,16 @@ export type Plan = {
 };
 
 /**
- * The published price list. The prices are illustrative — nothing is charged
- * and there is no checkout — but the capacity each tier names is the capacity
- * the create route enforces (lib/plan-caps.ts).
+ * The published price list. The amount is built from the same pence the
+ * checkout charges, and the capacity each tier names is the one the create
+ * route enforces (lib/plan-caps.ts), so neither number can drift from the build.
  */
 export const PLANS: Plan[] = [
   {
     key: 'note',
     name: PLAN_LABELS.note,
     cap: PLAN_CAPS.note,
-    amount: '£0',
+    amount: money(PLAN_PRICES.note),
     cadence: 'to try it',
     blurb: 'One invitation, from design to replies.',
     features: [
@@ -41,7 +41,7 @@ export const PLANS: Plan[] = [
     key: 'letter',
     name: PLAN_LABELS.letter,
     cap: PLAN_CAPS.letter,
-    amount: '£24',
+    amount: money(PLAN_PRICES.letter),
     cadence: 'per account',
     blurb: 'For a wedding, or a party with a list.',
     features: [
@@ -49,14 +49,14 @@ export const PLANS: Plan[] = [
       'Everything in Note',
       'Room for the next event before the last is over',
     ],
-    cta: 'Start an invitation',
+    cta: 'Choose Letter',
     featured: true,
   },
   {
     key: 'suite',
     name: PLAN_LABELS.suite,
     cap: PLAN_CAPS.suite,
-    amount: '£79',
+    amount: money(PLAN_PRICES.suite),
     cadence: 'per account',
     blurb: 'For someone who hosts all year.',
     features: [
@@ -64,6 +64,6 @@ export const PLANS: Plan[] = [
       'Everything in Letter',
       'Room for a whole season of events',
     ],
-    cta: 'Start an invitation',
+    cta: 'Choose Suite',
   },
 ];

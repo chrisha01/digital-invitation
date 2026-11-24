@@ -415,11 +415,12 @@ export default async function HomePage({
       <section className="section pricing" id="pricing">
         <div className="section-head">
           <h2>What it costs</h2>
-          <span className="muted small">Illustrative prices · no subscription</span>
+          <span className="muted small">Paid once · no subscription</span>
         </div>
 
         <p className="pricing-lede muted small">
-          Every tier is the whole app — plans differ in how many invitations you can hold.
+          Every tier is the whole app — a plan caps how many invitations an account holds at a time,
+          and nothing else differs.
         </p>
 
         <div className="pricing-grid">
@@ -444,7 +445,13 @@ export default async function HomePage({
               </ul>
               <Link
                 className={`btn ${plan.featured ? 'btn-primary' : 'btn-ghost'} btn-small`}
-                href="/create"
+                href={
+                  plan.key === 'note'
+                    ? '/create'
+                    : user
+                      ? '/app/account'
+                      : '/signin?next=%2Fapp%2Faccount'
+                }
               >
                 {plan.cta}
               </Link>
@@ -453,10 +460,10 @@ export default async function HomePage({
         </div>
 
         <p className="pricing-note muted small">
-          The tiers are a price list for a hosted Gatherly, and this build enforces the one boundary
-          it can: a plan caps how many invitations an account holds. Nothing is charged here —
-          plans are granted by hand — so every account starts on Note with one invitation, and the
-          rest of the app is the same on all three.
+          A plan is paid once through Stripe Checkout: no subscription, and nothing renews. Every
+          account starts on the free Note plan with one invitation; Letter and Suite hold more at a
+          time, and the rest of the app is the same on all three. With checkout not configured,
+          plans are still granted by hand.
         </p>
       </section>
 

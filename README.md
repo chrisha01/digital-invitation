@@ -194,6 +194,27 @@ colours (`/i/<id>/opengraph-image`). Set `APP_URL` to the public origin so `og:u
 without it the tags still resolve, but that one field is left out. Messaging apps cache a preview
 against the URL, so an edit may not refresh a link that was already pasted.
 
+## Plans and checkout
+
+Note is free with one invitation. Letter (£24) and Suite (£79) are bought once from `/app/account`
+through Stripe Checkout: the server prices the session from `lib/plan-caps.ts`, so the browser only
+names a plan and cannot set an amount. The plan rises when Stripe calls the webhook, not when the
+buyer returns, so a closed tab after paying still upgrades the account.
+
+```bash
+STRIPE_SECRET_KEY=sk_…            # Dashboard → Developers → API keys
+STRIPE_WEBHOOK_SECRET=whsec_…     # the endpoint below, or `stripe listen`
+APP_URL=https://gatherly.example  # return URLs; falls back to the request's origin
+```
+
+Point a Stripe endpoint at `POST /api/stripe/webhook` and subscribe it to `checkout.session.completed`.
+Locally, `stripe listen --forward-to localhost:3210/api/stripe/webhook` prints the `whsec_…` to put in
+`.env`. Only a signature-checked delivery can raise a plan, the amount must equal `PLAN_PRICES`, and
+each session is recorded once in `purchases` (created by `npm run db:migrate`), so a retried delivery
+cannot upgrade twice and a late one cannot undo a larger plan. With the two variables unset,
+`/app/account` says checkout is not switched on and `POST /api/checkout` answers 503;
+`npm run db:plan -- <email> <plan>` still grants a plan by hand.
+
 ## Sending updates
 
 Email and text go out through a provider; this app never runs a mail server.

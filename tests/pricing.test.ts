@@ -2,14 +2,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DESIGNS } from '@/lib/designs';
-import { PLAN_CAPS, PLAN_KEYS } from '@/lib/plan-caps';
+import { PLAN_CAPS, PLAN_KEYS, PLAN_PRICES, money } from '@/lib/plan-caps';
 import { PLANS } from '@/lib/plans';
 
 /**
- * The price list is copy plus one number a reader can hold the build to: the
- * invitation cap. These tests keep the copy honest about that cap, keep the
- * capacity the same in the database and in code, and keep payment out of the
- * build — a plan is granted by hand, so there is nothing to buy.
+ * The price list is copy plus numbers a reader can hold the build to: the
+ * invitation cap, and the price the checkout actually charges. These tests keep
+ * the copy honest about both, keep the capacity the same in the database and in
+ * code, and keep a plan change behind a signature-checked payment.
  */
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -74,6 +74,16 @@ describe('the published price list', () => {
     }
   });
 
+  it('prints the price the checkout charges', () => {
+    // Both come from PLAN_PRICES, so a card cannot advertise a price the server
+    // would not charge (or charge one it never printed).
+    for (const plan of PLANS) {
+      expect(plan.amount, `${plan.name} prints a price the checkout does not charge`).toBe(
+        money(PLAN_PRICES[plan.key]),
+      );
+    }
+  });
+
   it('names the invitation capacity the server enforces, and nothing else', () => {
     for (const plan of PLANS) {
       const text = planText(plan);
@@ -112,24 +122,30 @@ describe('the published price list', () => {
     expect(Number(named)).toBe(DESIGNS.length);
   });
 
-  it('sends every tier to the same place, where nothing is charged', () => {
+  it('sends a paid tier to checkout and the free tier to the editor', () => {
     // One link, shared by all three tiers because the section maps over PLANS.
     expect(section).toMatch(/\{PLANS\.map\(/);
-    expect(section.match(/href="\/create"/g)?.length).toBe(1);
-    expect(section).not.toMatch(/checkout|billing|stripe|upgrade|pricing\.com/i);
+    expect(section.match(/<Link/g)?.length).toBe(1);
+    // The branch is on the plan key and on being signed in, nothing else.
+    expect(section).toMatch(/plan\.key === 'note'/);
+    expect(section).toMatch(/'\/create'/);
+    expect(section).toMatch(/'\/app\/account'/);
+    expect(section).toMatch(/'\/signin\?next=%2Fapp%2Faccount'/);
+    // No price is sent from the page; the server prices the session.
+    expect(section).not.toMatch(/unit_amount|amount_total/);
   });
 
-  it('says how plans are granted and that nothing is charged', () => {
+  it('says what is charged, how often, and that nothing renews', () => {
     expect(section).toMatch(/caps how many invitations/i);
-    expect(section).toMatch(/plans\s+are granted by hand/i);
-    expect(section).toMatch(/nothing is charged/i);
-    expect(section).toMatch(/starts on Note/i);
-    expect(section).toMatch(/differ in how many invitations/i);
+    expect(section).toMatch(/Stripe Checkout/);
+    expect(section).toMatch(/paid once/i);
+    expect(section).toMatch(/no subscription/i);
+    expect(section).toMatch(/nothing renews/i);
   });
 });
 
 describe('the plan gate', () => {
-  /** Every file that decides what an account may do. */
+  /** Every file that decides what an account may do or pay. */
   function serverFiles(): string[] {
     const walk = (dir: string): string[] =>
       readdirSync(`${root}${dir}`, { withFileTypes: true }).flatMap((entry) => {
@@ -137,7 +153,13 @@ describe('the plan gate', () => {
         if (entry.isDirectory()) return walk(path);
         return entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') ? [path] : [];
       });
-    return [...walk('/app/api'), '/lib/access.ts', '/lib/store.ts', '/lib/plan-caps.ts'];
+    return [
+      ...walk('/app/api'),
+      '/lib/access.ts',
+      '/lib/store.ts',
+      '/lib/plan-caps.ts',
+      '/lib/purchases.ts',
+    ];
   }
 
   it('checks the cap where an invitation is created', () => {
@@ -162,6 +184,13 @@ describe('the plan gate', () => {
     expect(new Set(caps).size).toBe(caps.length);
   });
 
+  it('prices the free plan at nothing and the paid plans above it', () => {
+    expect(PLAN_PRICES.note).toBe(0);
+    expect(PLAN_PRICES.letter).toBeGreaterThan(0);
+    expect(PLAN_PRICES.suite).toBeGreaterThan(PLAN_PRICES.letter);
+    for (const key of PLAN_KEYS) expect(Number.isInteger(PLAN_PRICES[key])).toBe(true);
+  });
+
   it('keeps the database enum in step with the caps', () => {
     const migration = read('/db/migrations/0004_plans.sql');
     expect(migration).toMatch(/add column if not exists plan text/i);
@@ -179,17 +208,48 @@ describe('the plan gate', () => {
     ).toEqual([...PLAN_KEYS].sort());
   });
 
+  it('keeps an idempotent receipt for every payment', () => {
+    const migration = read('/db/migrations/0005_purchases.sql');
+    expect(migration).toMatch(/session_id\s+text not null unique/i);
+    expect(migration).toMatch(/user_id\s+text not null references users\(id\)/i);
+    expect(migration).toMatch(/amount\s+integer not null check \(amount > 0\)/i);
+  });
+
   it('shows the plan and the count on the account page', () => {
     const account = read('/app/app/account/page.tsx');
     expect(account).toMatch(/plan-badge/);
     expect(account).toMatch(/PLAN_LABELS\[plan\]/);
     expect(account).toMatch(/planCap\(plan\)/);
+    // The offered upgrades are the plans above this one, decided server-side.
+    expect(account).toMatch(/paidPlansAbove\(plan\)/);
   });
 
-  it('has no payment provider behind the badge', () => {
-    const paid = serverFiles().filter((path) =>
-      /\b(stripe|checkout|billing|subscription|paypal)\b/i.test(read(path)),
-    );
-    expect(paid, 'a plan is granted by hand; nothing may charge for one').toEqual([]);
+  it('charges its own price and only sells a higher plan', () => {
+    const checkout = read('/app/api/checkout/route.ts');
+    // The amount comes from the price table, never from the request body.
+    expect(checkout).toMatch(/PLAN_PRICES\[plan\]/);
+    expect(checkout).toMatch(/paidPlansAbove\(user\.plan\)/);
+    expect(checkout).not.toMatch(/body\?\.(amount|price)/);
+  });
+
+  it('verifies the stripe signature before it parses a webhook', () => {
+    const webhook = read('/app/api/stripe/webhook/route.ts');
+    const verifyAt = webhook.indexOf('verifyStripeSignature');
+    const parseAt = webhook.indexOf('JSON.parse');
+    expect(verifyAt, 'the webhook never verifies its signature').toBeGreaterThan(-1);
+    expect(verifyAt).toBeLessThan(parseAt);
+    expect(webhook).toMatch(/STRIPE_WEBHOOK_SECRET/);
+  });
+
+  it('lets only the webhook raise a plan', () => {
+    const recorders = serverFiles().filter((path) => /await recordPurchase\(/.test(read(path)));
+    expect(recorders, 'a plan may only change on a recorded payment').toEqual([
+      '/app/api/stripe/webhook/route.ts',
+    ]);
+
+    const writers = serverFiles().filter((path) => /set plan = \$2/i.test(read(path)));
+    expect(writers, 'the purchased-plan path is the only one that sets a plan').toEqual([
+      '/lib/purchases.ts',
+    ]);
   });
 });

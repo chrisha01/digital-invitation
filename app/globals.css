@@ -4004,6 +4004,50 @@ input[type='range'] {
   margin-top: 6px;
 }
 
+.m-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.m-plan-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-plan-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.m-plan-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.m-plan-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--ink);
+}
+
+/* The panel pushes its buttons to the start; these ones sit in a row. */
+.m-panel .m-plan-option .btn {
+  align-self: center;
+  margin-top: 0;
+}
+
 .m-actions .btn {
   align-self: stretch;
 }
