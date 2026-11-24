@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
-import { readPaidCheckout, verifyStripeSignature } from '@/lib/billing';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fetchPaidCheckout, readPaidCheckout, verifyStripeSignature } from '@/lib/billing';
 import { PLAN_PRICES, money, paidPlansAbove, planRank } from '@/lib/plan-caps';
 import { PLANS } from '@/lib/plans';
 
@@ -16,20 +16,22 @@ const NOW = 1_760_000_000_000; // a fixed clock so the tolerance is deterministi
 const sign = (payload: string, timestamp = Math.floor(NOW / 1000), secret = SECRET) =>
   `t=${timestamp},v1=${createHmac('sha256', secret).update(`${timestamp}.${payload}`).digest('hex')}`;
 
+function sessionObject(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'cs_test_123',
+    payment_status: 'paid',
+    amount_total: PLAN_PRICES.letter,
+    currency: 'gbp',
+    client_reference_id: 'user_1',
+    metadata: { user_id: 'user_1', plan: 'letter' },
+    ...overrides,
+  };
+}
+
 function paidSession(overrides: Record<string, unknown> = {}) {
   return {
     type: 'checkout.session.completed',
-    data: {
-      object: {
-        id: 'cs_test_123',
-        payment_status: 'paid',
-        amount_total: PLAN_PRICES.letter,
-        currency: 'gbp',
-        client_reference_id: 'user_1',
-        metadata: { user_id: 'user_1', plan: 'letter' },
-        ...overrides,
-      },
-    },
+    data: { object: sessionObject(overrides) },
   };
 }
 
@@ -132,5 +134,73 @@ describe('a paid checkout session', () => {
         paidSession({ client_reference_id: 'user_2', metadata: { user_id: 'user_1', plan: 'letter' } }),
       ),
     ).toBeNull();
+  });
+});
+
+describe('the session a buyer comes back with', () => {
+  const originalKey = process.env.STRIPE_SECRET_KEY;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    if (originalKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = originalKey;
+  });
+
+  /** Stands in for Stripe, and records what was asked of it. */
+  function stubStripe(answer: () => Response) {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      return answer();
+    });
+    return calls;
+  }
+
+  it('asks stripe for the paid session and reads it', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_key';
+    const calls = stubStripe(() => new Response(JSON.stringify(sessionObject()), { status: 200 }));
+
+    expect(await fetchPaidCheckout('cs_test_123')).toEqual({
+      sessionId: 'cs_test_123',
+      userId: 'user_1',
+      plan: 'letter',
+      amount: PLAN_PRICES.letter,
+      currency: 'gbp',
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('https://api.stripe.com/v1/checkout/sessions/cs_test_123');
+    expect((calls[0].init?.headers as Record<string, string>).authorization).toBe(
+      'Bearer sk_test_key',
+    );
+  });
+
+  it('does not ask stripe about an id that is not a session, or without a key', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_key';
+    const calls = stubStripe(() => new Response('{}', { status: 200 }));
+
+    expect(await fetchPaidCheckout('not-a-session')).toBeNull();
+    expect(await fetchPaidCheckout(undefined)).toBeNull();
+    expect(calls).toHaveLength(0);
+
+    delete process.env.STRIPE_SECRET_KEY;
+    expect(await fetchPaidCheckout('cs_test_123')).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('ignores an unpaid session, another amount and a failure from stripe', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_key';
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    stubStripe(
+      () => new Response(JSON.stringify(sessionObject({ payment_status: 'unpaid' })), { status: 200 }),
+    );
+    expect(await fetchPaidCheckout('cs_test_123')).toBeNull();
+
+    stubStripe(() => new Response(JSON.stringify(sessionObject({ amount_total: 1 })), { status: 200 }));
+    expect(await fetchPaidCheckout('cs_test_123')).toBeNull();
+
+    stubStripe(() => new Response('{"error":"nope"}', { status: 401 }));
+    expect(await fetchPaidCheckout('cs_test_123')).toBeNull();
   });
 });

@@ -27,18 +27,16 @@ export function checkoutConfigured(): boolean {
 
 /**
  * Reads a completed Checkout Session and returns null for anything this build
- * must not act on: another event, an unpaid session, a plan nobody sells, an
- * amount that is not the price code charges, or no account to credit.
+ * must not act on: an unpaid session, a plan nobody sells, an amount that is not
+ * the price code charges, or no account to credit.
  *
- * The session arrives over a signature-checked delivery, but the price is
- * checked too: a price edited in the Stripe dashboard must not silently turn
+ * The session arrives over a signature-checked delivery, or is fetched from
+ * Stripe by session id on the way back from Checkout, but the price is checked
+ * either way: a price edited in the Stripe dashboard must not silently turn
  * into a different plan here.
  */
-export function readPaidCheckout(event: unknown): PaidCheckout | null {
-  const payload = event as { type?: string; data?: { object?: unknown } } | null;
-  if (!payload || payload.type !== 'checkout.session.completed') return null;
-
-  const session = (payload.data?.object ?? null) as {
+export function readPaidSession(session: unknown): PaidCheckout | null {
+  const paid = (session ?? null) as {
     id?: string;
     payment_status?: string;
     amount_total?: number | null;
@@ -46,27 +44,72 @@ export function readPaidCheckout(event: unknown): PaidCheckout | null {
     client_reference_id?: string | null;
     metadata?: Record<string, string> | null;
   } | null;
-  if (!session || !session.id) return null;
-  if (session.payment_status !== 'paid') return null;
+  if (!paid || !paid.id) return null;
+  if (paid.payment_status !== 'paid') return null;
 
-  const currency = (session.currency ?? '').toLowerCase();
+  const currency = (paid.currency ?? '').toLowerCase();
   if (currency !== PLAN_CURRENCY) return null;
 
-  const plan = planKey(session.metadata?.plan);
+  const plan = planKey(paid.metadata?.plan);
   if (PLAN_PRICES[plan] <= 0) return null;
 
-  const userId = session.metadata?.user_id || session.client_reference_id || '';
+  const userId = paid.metadata?.user_id || paid.client_reference_id || '';
   if (!userId) return null;
 
   // Both are set when the session was created; if they disagree, trust neither.
-  if (session.metadata?.user_id && session.client_reference_id) {
-    if (session.metadata.user_id !== session.client_reference_id) return null;
+  if (paid.metadata?.user_id && paid.client_reference_id) {
+    if (paid.metadata.user_id !== paid.client_reference_id) return null;
   }
 
-  const amount = Number(session.amount_total);
+  const amount = Number(paid.amount_total);
   if (!Number.isFinite(amount) || amount !== PLAN_PRICES[plan]) return null;
 
-  return { sessionId: session.id, userId, plan, amount, currency };
+  return { sessionId: paid.id, userId, plan, amount, currency };
+}
+
+/** The webhook's shape: the session it acted on, wrapped in an event. */
+export function readPaidCheckout(event: unknown): PaidCheckout | null {
+  const payload = event as { type?: string; data?: { object?: unknown } } | null;
+  if (!payload || payload.type !== 'checkout.session.completed') return null;
+  return readPaidSession(payload.data?.object);
+}
+
+/** What a Checkout Session id looks like. Anything else is not worth a request. */
+const SESSION_ID = /^cs_[A-Za-z0-9_]+$/;
+
+/**
+ * Reads one session straight from Stripe, for the buyer coming back from
+ * Checkout.
+ *
+ * Stripe's webhook is the source of truth, but it can arrive after the browser
+ * is already back, so the return page asks Stripe what it just paid for instead
+ * of showing the plan the account held before. Returns null when checkout is not
+ * configured, the id is not a session id, or Stripe does not describe a paid
+ * session this build sells.
+ */
+export async function fetchPaidCheckout(sessionId: string | null | undefined): Promise<PaidCheckout | null> {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  const id = sessionId?.trim() ?? '';
+  if (!key || !SESSION_ID.test(id)) return null;
+
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(id)}`,
+      {
+        headers: { authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(10_000),
+        cache: 'no-store',
+      },
+    );
+    if (!response.ok) {
+      console.error('stripe session lookup failed:', response.status);
+      return null;
+    }
+    return readPaidSession(await response.json());
+  } catch (error) {
+    console.error('stripe session lookup failed:', error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 /**

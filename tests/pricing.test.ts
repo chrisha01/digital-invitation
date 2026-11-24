@@ -159,6 +159,7 @@ describe('the plan gate', () => {
       '/lib/store.ts',
       '/lib/plan-caps.ts',
       '/lib/purchases.ts',
+      '/lib/checkout-return.ts',
     ];
   }
 
@@ -222,6 +223,10 @@ describe('the plan gate', () => {
     expect(account).toMatch(/planCap\(plan\)/);
     // The offered upgrades are the plans above this one, decided server-side.
     expect(account).toMatch(/paidPlansAbove\(plan\)/);
+    // Back from Checkout the payment is confirmed and the plan re-read, so the
+    // page cannot offer the plan it just sold.
+    expect(account).toMatch(/confirmCheckoutReturn\(/);
+    expect(account).toMatch(/forgetUser\(/);
   });
 
   it('charges its own price and only sells a higher plan', () => {
@@ -230,6 +235,13 @@ describe('the plan gate', () => {
     expect(checkout).toMatch(/PLAN_PRICES\[plan\]/);
     expect(checkout).toMatch(/paidPlansAbove\(user\.plan\)/);
     expect(checkout).not.toMatch(/body\?\.(amount|price)/);
+  });
+
+  it('sends the buyer back with the session id to confirm', () => {
+    const checkout = read('/app/api/checkout/route.ts');
+    expect(checkout).toMatch(/session_id=\{CHECKOUT_SESSION_ID\}/);
+    // Form encoding would ship %7B/%7D and Stripe substitutes nothing.
+    expect(checkout).toMatch(/replace\('%7BCHECKOUT_SESSION_ID%7D', '\{CHECKOUT_SESSION_ID\}'\)/);
   });
 
   it('verifies the stripe signature before it parses a webhook', () => {
@@ -241,10 +253,13 @@ describe('the plan gate', () => {
     expect(webhook).toMatch(/STRIPE_WEBHOOK_SECRET/);
   });
 
-  it('lets only the webhook raise a plan', () => {
+  it('lets only a verified stripe payment raise a plan', () => {
+    // Both paths record a session Stripe confirms: the webhook verifies its
+    // signature, the return page fetches the session with the secret key.
     const recorders = serverFiles().filter((path) => /await recordPurchase\(/.test(read(path)));
     expect(recorders, 'a plan may only change on a recorded payment').toEqual([
       '/app/api/stripe/webhook/route.ts',
+      '/lib/checkout-return.ts',
     ]);
 
     const writers = serverFiles().filter((path) => /set plan = \$2/i.test(read(path)));

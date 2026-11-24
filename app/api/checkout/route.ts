@@ -62,7 +62,9 @@ export async function POST(request: Request) {
   // a plan key, and the server decides what that costs.
   const form = new URLSearchParams({
     mode: 'payment',
-    success_url: `${origin}/app/account?paid=1`,
+    // Stripe fills in the session id, so the return page can confirm the payment
+    // itself instead of waiting for the webhook to raise the plan.
+    success_url: `${origin}/app/account?paid=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/app/account?cancelled=1`,
     client_reference_id: user.id,
     customer_email: user.email,
@@ -85,7 +87,9 @@ export async function POST(request: Request) {
         // rather than piling up open checkouts for the same plan.
         'idempotency-key': `${user.id}:${plan}:${Math.floor(Date.now() / 600_000)}`,
       },
-      body: form,
+      // The placeholder must reach Stripe literally; form encoding would turn
+      // its braces into %7B/%7D and nothing would be substituted.
+      body: form.toString().replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}'),
       signal: AbortSignal.timeout(10_000),
     });
 

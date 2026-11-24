@@ -160,7 +160,7 @@ export async function resetPassword(token: string, password: string): Promise<Se
       returning *`,
     [user.id, salt, digest(password, salt), changed],
   );
-  globalForAuth.__gatherlyUsers?.delete(user.id);
+  forgetUser(user.id);
   return updated[0] ? toPublic(updated[0]) : null;
 }
 
@@ -213,6 +213,14 @@ export function sessionSecret(): Promise<string> {
  * reset clears the entry straight away.
  */
 const USER_TTL_MS = 15_000;
+
+/**
+ * Drops the cached row so the next read sees a change made elsewhere, such as a
+ * payment recorded by the webhook or by the return from Checkout.
+ */
+export function forgetUser(id: string) {
+  globalForAuth.__gatherlyUsers?.delete(id);
+}
 
 async function userForSession(id: string): Promise<SessionUser | null> {
   const cache = (globalForAuth.__gatherlyUsers ??= new Map());
