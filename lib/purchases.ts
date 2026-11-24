@@ -1,3 +1,4 @@
+import { forgetUser } from './auth';
 import type { PaidCheckout } from './billing';
 import { getPool } from './db';
 import { planRank } from './plan-caps';
@@ -61,6 +62,9 @@ export async function recordPurchase(purchase: PaidCheckout): Promise<PurchaseOu
 
     await client.query('update users set plan = $2 where id = $1', [purchase.userId, purchase.plan]);
     await client.query('commit');
+    // The session read cached the old plan; without this the next checkout
+    // request would still see room to buy the plan just paid for.
+    forgetUser(purchase.userId);
     return 'upgraded';
   } catch (error) {
     await client.query('rollback').catch(() => {});
