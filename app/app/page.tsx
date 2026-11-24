@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import BrandMark from '@/components/BrandMark';
 import Loading from '@/components/Loading';
+import DeleteInvitationButton from '@/components/DeleteInvitationButton';
 import StartInvitation from '@/components/app/StartInvitation';
 import { requireUser } from '@/lib/auth';
 import { cachedInvitations } from '@/lib/invitation-cache';
@@ -55,8 +56,11 @@ async function InvitationList({ userId }: { userId: string }) {
   return (
     <ul className="m-list">
       {invitations.map((item) => (
-        <li key={item.id}>
-          <Link href={`/app/i/${item.id}`} className="m-card">
+        <li key={item.id} className="m-card">
+          {/* The card is the list item, not the link, so the delete button can
+              sit beside the link instead of inside it (a button in an anchor is
+              invalid and unreachable by keyboard). */}
+          <Link href={`/app/i/${item.id}`} className="m-card-link">
             <span className="m-card-title">{item.title}</span>
             <span className="m-card-when">{formatWhen(item.startsAt)}</span>
             {item.location ? <span className="m-card-where">{item.location}</span> : null}
@@ -72,6 +76,9 @@ async function InvitationList({ userId }: { userId: string }) {
               ) : null}
             </span>
           </Link>
+          <div className="m-card-tools">
+            <DeleteInvitationButton id={item.id} title={item.title} label="Delete invitation" />
+          </div>
         </li>
       ))}
     </ul>

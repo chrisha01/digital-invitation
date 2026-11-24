@@ -3946,6 +3946,19 @@ input[type='range'] {
   color: var(--muted);
 }
 
+.m-card-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+}
+
+.m-card-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 .m-counts {
   display: flex;
   flex-wrap: wrap;

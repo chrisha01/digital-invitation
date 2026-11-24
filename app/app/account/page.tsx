@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import SignOutButton from '@/components/SignOutButton';
 import { requireUser } from '@/lib/auth';
 import { PLAN_LABELS, planCap, planKey } from '@/lib/plan-caps';
@@ -28,8 +29,8 @@ export default async function AppAccountPage() {
         </p>
         {atCap ? (
           <p>
-            That is everything this plan holds. Delete an invitation to start another, or ask for a
-            larger plan.
+            That is everything this plan holds. Delete an invitation to start another, or{' '}
+            <Link href="/#pricing">see what a larger plan holds</Link>.
           </p>
         ) : null}
         {saved.length === 0 ? (
