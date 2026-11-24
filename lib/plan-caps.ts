@@ -38,7 +38,7 @@ export function planCap(value: string | null | undefined): number {
 }
 
 /**
- * What a plan costs, in pence.
+ * What a plan costs, in cents.
  *
  * Prices live beside the caps because they are part of the same gate: the
  * checkout charges these numbers and the price list prints them, so a card
@@ -51,16 +51,16 @@ export const PLAN_PRICES: Record<PlanKey, number> = {
 };
 
 /** The currency Stripe is asked for; also the one a paid session must be in. */
-export const PLAN_CURRENCY = 'gbp';
+export const PLAN_CURRENCY = 'usd';
 
 /** Position in the plan list. A purchase may only move an account up it. */
 export function planRank(value: string | null | undefined): number {
   return PLAN_KEYS.indexOf(planKey(value));
 }
 
-/** £24, or £24.50 when a price is not a whole pound. */
-export function money(pence: number): string {
-  return pence % 100 === 0 ? `£${pence / 100}` : `£${(pence / 100).toFixed(2)}`;
+/** $24, or $24.50 when a price is not a whole dollar. */
+export function money(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
 }
 
 /** The paid plans above this one: exactly what the account may buy. */

@@ -9,7 +9,7 @@ create table if not exists purchases (
   user_id     text not null references users(id) on delete cascade,
   plan        text not null check (plan in ('letter', 'suite')),
   amount      integer not null check (amount > 0),
-  currency    text not null default 'gbp',
+  currency    text not null default 'usd',
   provider    text not null default 'stripe',
   session_id  text not null unique,
   created_at  timestamptz not null default now()

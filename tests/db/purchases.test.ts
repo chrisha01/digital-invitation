@@ -62,7 +62,7 @@ const purchase = (userId: string, sessionId: string, plan: PlanKey) => ({
   userId,
   plan,
   amount: PLAN_PRICES[plan],
-  currency: 'gbp',
+  currency: 'usd',
 });
 
 beforeEach(async () => {
@@ -119,7 +119,7 @@ describe("stripe's webhook", () => {
           id: sessionId,
           payment_status: 'paid',
           amount_total: PLAN_PRICES.suite,
-          currency: 'gbp',
+          currency: 'usd',
           client_reference_id: userId,
           metadata: { user_id: userId, plan: 'suite' },
           ...overrides,

@@ -21,7 +21,7 @@ function sessionObject(overrides: Record<string, unknown> = {}) {
     id: 'cs_test_123',
     payment_status: 'paid',
     amount_total: PLAN_PRICES.letter,
-    currency: 'gbp',
+    currency: 'usd',
     client_reference_id: 'user_1',
     metadata: { user_id: 'user_1', plan: 'letter' },
     ...overrides,
@@ -42,13 +42,13 @@ describe('what a plan costs', () => {
       money(PLAN_PRICES.letter),
       money(PLAN_PRICES.suite),
     ]);
-    expect(money(PLAN_PRICES.letter)).toBe('£24');
+    expect(money(PLAN_PRICES.letter)).toBe('$24');
   });
 
-  it('writes pence as pounds, including the pence that are not zero', () => {
-    expect(money(0)).toBe('£0');
-    expect(money(2400)).toBe('£24');
-    expect(money(2450)).toBe('£24.50');
+  it('writes cents as dollars, including the cents that are not zero', () => {
+    expect(money(0)).toBe('$0');
+    expect(money(2400)).toBe('$24');
+    expect(money(2450)).toBe('$24.50');
   });
 
   it('ranks the plans and offers only the ones above the current one', () => {
@@ -103,7 +103,7 @@ describe('a paid checkout session', () => {
       userId: 'user_1',
       plan: 'letter',
       amount: PLAN_PRICES.letter,
-      currency: 'gbp',
+      currency: 'usd',
     });
   });
 
@@ -121,7 +121,7 @@ describe('a paid checkout session', () => {
     // An amount the price table does not charge.
     expect(readPaidCheckout(paidSession({ amount_total: 100 }))).toBeNull();
     // Stripe charged in a currency this build does not sell in.
-    expect(readPaidCheckout(paidSession({ currency: 'usd' }))).toBeNull();
+    expect(readPaidCheckout(paidSession({ currency: 'gbp' }))).toBeNull();
     // Nothing says which account to credit.
     expect(
       readPaidCheckout(
@@ -166,7 +166,7 @@ describe('the session a buyer comes back with', () => {
       userId: 'user_1',
       plan: 'letter',
       amount: PLAN_PRICES.letter,
-      currency: 'gbp',
+      currency: 'usd',
     });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.stripe.com/v1/checkout/sessions/cs_test_123');

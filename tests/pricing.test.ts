@@ -62,10 +62,10 @@ const UNGATED_FEATURES = [
 ];
 
 describe('the published price list', () => {
-  it('publishes three tiers, in pounds, two of them per account', () => {
+  it('publishes three tiers, in dollars, two of them per account', () => {
     expect(PLANS).toHaveLength(3);
     expect(new Set(PLANS.map((plan) => plan.name)).size).toBe(3);
-    expect(PLANS.map((plan) => plan.amount)).toEqual(['£0', '£24', '£79']);
+    expect(PLANS.map((plan) => plan.amount)).toEqual(['$0', '$24', '$79']);
     expect(PLANS.filter((plan) => plan.cadence === 'per account')).toHaveLength(2);
     for (const plan of PLANS) {
       expect(plan.blurb).not.toBe('');

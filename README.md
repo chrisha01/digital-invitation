@@ -196,7 +196,7 @@ against the URL, so an edit may not refresh a link that was already pasted.
 
 ## Plans and checkout
 
-Note is free with one invitation. Letter (£24) and Suite (£79) are bought once from `/app/account`
+Note is free with one invitation. Letter ($24) and Suite ($79) are bought once from `/app/account`
 through Stripe Checkout: the server prices the session from `lib/plan-caps.ts`, so the browser only
 names a plan and cannot set an amount. The plan rises when Stripe calls the webhook, not when the
 buyer returns, so a closed tab after paying still upgrades the account.

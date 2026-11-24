@@ -15,7 +15,7 @@ export type Plan = {
 };
 
 /**
- * The published price list. The amount is built from the same pence the
+ * The published price list. The amount is built from the same cents the
  * checkout charges, and the capacity each tier names is the one the create
  * route enforces (lib/plan-caps.ts), so neither number can drift from the build.
  */
