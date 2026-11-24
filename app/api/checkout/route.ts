@@ -62,6 +62,11 @@ export async function POST(request: Request) {
   // a plan key, and the server decides what that costs.
   const form = new URLSearchParams({
     mode: 'payment',
+    // Stripe turns Managed Payments on by default for some accounts, and then
+    // refuses a session whose line items carry no product tax code. These are
+    // plain one-off plan purchases priced inline here, so the management layer
+    // is switched off for the session instead of inventing a tax classification.
+    'managed_payments[enabled]': 'false',
     // Stripe fills in the session id, so the return page can confirm the payment
     // itself instead of waiting for the webhook to raise the plan.
     success_url: `${origin}/app/account?paid=1&session_id={CHECKOUT_SESSION_ID}`,
